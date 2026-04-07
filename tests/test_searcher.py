@@ -24,10 +24,7 @@ class TestSearchMemories:
 
     def test_wing_and_room_filter(self, palace_path, seeded_collection):
         result = search_memories("code", palace_path, wing="project", room="frontend")
-        assert all(
-            r["wing"] == "project" and r["room"] == "frontend"
-            for r in result["results"]
-        )
+        assert all(r["wing"] == "project" and r["room"] == "frontend" for r in result["results"])
 
     def test_n_results_limit(self, palace_path, seeded_collection):
         result = search_memories("code", palace_path, n_results=2)

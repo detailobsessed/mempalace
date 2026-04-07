@@ -148,7 +148,9 @@ class TestZettelEncoding:
 class TestDecode:
     def test_decode_roundtrip(self):
         d = Dialect()
-        encoded = "001|ALC+BOB|2025-01-01|test_title\nARC:journey\n001:ALC|memory_ai|\"test quote\"|0.9|joy"
+        encoded = (
+            '001|ALC+BOB|2025-01-01|test_title\nARC:journey\n001:ALC|memory_ai|"test quote"|0.9|joy'
+        )
         decoded = d.decode(encoded)
         assert decoded["header"]["file"] == "001"
         assert decoded["arc"] == "journey"

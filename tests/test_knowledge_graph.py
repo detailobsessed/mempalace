@@ -5,8 +5,6 @@ Covers: entity CRUD, triple CRUD, temporal queries, invalidation,
 timeline, stats, and edge cases (duplicate triples, ID collisions).
 """
 
-from mempalace.knowledge_graph import KnowledgeGraph
-
 
 class TestEntityOperations:
     def test_add_entity(self, kg):

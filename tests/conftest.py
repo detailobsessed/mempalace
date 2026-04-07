@@ -27,11 +27,11 @@ os.environ["HOMEDRIVE"] = os.path.splitdrive(_session_tmp)[0] or "C:"
 os.environ["HOMEPATH"] = os.path.splitdrive(_session_tmp)[1] or _session_tmp
 
 # Now it is safe to import mempalace modules that trigger initialisation.
-import chromadb
-import pytest
+import chromadb  # noqa: E402
+import pytest  # noqa: E402
 
-from mempalace.config import MempalaceConfig
-from mempalace.knowledge_graph import KnowledgeGraph
+from mempalace.config import MempalaceConfig  # noqa: E402
+from mempalace.knowledge_graph import KnowledgeGraph  # noqa: E402
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -108,10 +108,38 @@ def seeded_collection(collection):
             "Evaluate ChromaDB alternatives for vector search.",
         ],
         metadatas=[
-            {"wing": "project", "room": "backend", "source_file": "auth.py", "chunk_index": 0, "added_by": "miner", "filed_at": "2026-01-01T00:00:00"},
-            {"wing": "project", "room": "backend", "source_file": "db.py", "chunk_index": 0, "added_by": "miner", "filed_at": "2026-01-02T00:00:00"},
-            {"wing": "project", "room": "frontend", "source_file": "App.tsx", "chunk_index": 0, "added_by": "miner", "filed_at": "2026-01-03T00:00:00"},
-            {"wing": "notes", "room": "planning", "source_file": "sprint.md", "chunk_index": 0, "added_by": "miner", "filed_at": "2026-01-04T00:00:00"},
+            {
+                "wing": "project",
+                "room": "backend",
+                "source_file": "auth.py",
+                "chunk_index": 0,
+                "added_by": "miner",
+                "filed_at": "2026-01-01T00:00:00",
+            },
+            {
+                "wing": "project",
+                "room": "backend",
+                "source_file": "db.py",
+                "chunk_index": 0,
+                "added_by": "miner",
+                "filed_at": "2026-01-02T00:00:00",
+            },
+            {
+                "wing": "project",
+                "room": "frontend",
+                "source_file": "App.tsx",
+                "chunk_index": 0,
+                "added_by": "miner",
+                "filed_at": "2026-01-03T00:00:00",
+            },
+            {
+                "wing": "notes",
+                "room": "planning",
+                "source_file": "sprint.md",
+                "chunk_index": 0,
+                "added_by": "miner",
+                "filed_at": "2026-01-04T00:00:00",
+            },
         ],
     )
     return collection

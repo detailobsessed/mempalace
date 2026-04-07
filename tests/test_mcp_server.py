@@ -58,11 +58,13 @@ class TestHandleRequest:
     def test_unknown_tool(self):
         from mempalace.mcp_server import handle_request
 
-        resp = handle_request({
-            "method": "tools/call",
-            "id": 3,
-            "params": {"name": "nonexistent_tool", "arguments": {}},
-        })
+        resp = handle_request(
+            {
+                "method": "tools/call",
+                "id": 3,
+                "params": {"name": "nonexistent_tool", "arguments": {}},
+            }
+        )
         assert resp["error"]["code"] == -32601
 
     def test_unknown_method(self):
@@ -78,11 +80,13 @@ class TestHandleRequest:
         # Create a collection so status works
         _get_collection(palace_path, create=True)
 
-        resp = handle_request({
-            "method": "tools/call",
-            "id": 5,
-            "params": {"name": "mempalace_status", "arguments": {}},
-        })
+        resp = handle_request(
+            {
+                "method": "tools/call",
+                "id": 5,
+                "params": {"name": "mempalace_status", "arguments": {}},
+            }
+        )
         assert "result" in resp
         content = json.loads(resp["result"]["content"][0]["text"])
         assert "total_drawers" in content
