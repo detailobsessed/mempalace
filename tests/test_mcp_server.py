@@ -151,9 +151,10 @@ class TestReadTools:
         assert result["taxonomy"]["project"]["frontend"] == 1
         assert result["taxonomy"]["notes"]["planning"] == 1
 
-    def test_no_palace_returns_error(self, monkeypatch, config, kg):
-        config._file_config["palace_path"] = "/nonexistent/path"
-        _patch_mcp_server(monkeypatch, config, "/nonexistent/path", kg)
+    def test_no_palace_returns_error(self, monkeypatch, config, kg, tmp_path):
+        missing = str(tmp_path / "missing")
+        config._file_config["palace_path"] = missing
+        _patch_mcp_server(monkeypatch, config, missing, kg)
         from mempalace.mcp_server import tool_status
 
         result = tool_status()

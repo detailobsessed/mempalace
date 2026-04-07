@@ -37,14 +37,19 @@ from mempalace.knowledge_graph import KnowledgeGraph  # noqa: E402
 @pytest.fixture(autouse=True)
 def _reset_mcp_cache():
     """Reset the MCP server's cached ChromaDB client/collection between tests."""
-    yield
-    try:
-        from mempalace import mcp_server
 
-        mcp_server._client_cache = None
-        mcp_server._collection_cache = None
-    except (ImportError, AttributeError):
-        pass
+    def _clear_cache():
+        try:
+            from mempalace import mcp_server
+
+            mcp_server._client_cache = None
+            mcp_server._collection_cache = None
+        except (ImportError, AttributeError):
+            pass
+
+    _clear_cache()
+    yield
+    _clear_cache()
 
 
 @pytest.fixture(scope="session", autouse=True)
