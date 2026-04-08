@@ -23,7 +23,7 @@ Upstream MemPalace is a great idea with a working prototype. This fork makes it 
 | **Tests** | None | 568 tests, 86% coverage |
 | **Type checking** | None | ty — 0 errors |
 | **Packaging** | No `pyproject.toml` | uv + src layout, installable as editable tool |
-| **CI** | None | GitHub Actions (lint, typecheck, test, docs, release) |
+| **CI** | None | GitHub Actions (lint, typecheck, test, docs) |
 | **Pre-commit hooks** | None | ruff, ty, typos, pytest, secret detection |
 | **Docs site** | None | mkdocs-material with API reference |
 | **License** | Apache 2.0 | MIT |
@@ -38,9 +38,9 @@ Everything else — the palace architecture, AAAK dialect, MCP server, knowledge
 
 - **`pyproject.toml`** — proper Python packaging with `uv_build`, dependency pinning (`chromadb>=1.5.6`), `py.typed` marker
 - **src layout** — `mempalace/` → `src/mempalace/` for clean install isolation
-- **568 tests** across 21 test files covering all modules: dialect, layers, searcher, miner, convo_miner, MCP server, knowledge graph, entity detection, normalize, spellcheck, CLI, split, config, onboarding, room detection
-- **86% branch coverage** enforced in CI with `--cov-fail-under=85`
-- **GitHub Actions CI** — lint + typecheck + test on every push, docs build, automated releases
+- **568 tests** across 18 test files covering all modules: dialect, layers, searcher, miner, convo_miner, MCP server, knowledge graph, entity detection, normalize, spellcheck, CLI, split, config, onboarding, room detection
+- **86% branch coverage** enforced in pre-push hook with `--cov-fail-under=85`
+- **GitHub Actions CI** — lint + typecheck + test on every push, docs build
 - **Pre-commit/pre-push hooks** via prek: ruff check+format, ty type checking, typos, pytest-testmon (incremental), pytest-cov on push
 - **mkdocs-material docs** with API reference auto-generated from docstrings
 - **Issue templates**, PR template, dependabot, security policy, contributing guide, code of conduct

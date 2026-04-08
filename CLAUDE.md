@@ -90,6 +90,6 @@ Priority: env vars (`MEMPALACE_PALACE_PATH`) > config file (`~/.mempalace/config
 ## Repository
 
 - **Fork**: `detailobsessed/mempalace` (origin)
-- **Upstream**: `mempalace/mempalace` (upstream)
+- **Upstream**: `milla-jovovich/mempalace` (upstream)
 - **Trunk branch**: `bleeding` (template-enhanced development)
 - **Main branch**: `main` (kept clean for upstream PRs)
