@@ -215,6 +215,13 @@ precision = 2
 omit = ["src/*/__init__.py", "src/*/__main__.py"]
 exclude_lines = ["pragma: no cover", "if TYPE_CHECKING", "if __name__ == .__main__.:"]
 
+[tool.ty]
+src = ["src"]
+
+[tool.ty.rules]
+# autocorrect is an optional dependency, guarded by try/except ImportError
+unresolved-import = "warn"
+
 [tool.ty.environment]
 python-version = "3.14"
 python = ".venv"

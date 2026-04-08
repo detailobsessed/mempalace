@@ -25,6 +25,18 @@ import chromadb
 
 from .config import MempalaceConfig
 
+
+def _build_where(wing: str | None, room: str | None) -> dict | None:
+    """Build a ChromaDB where filter from optional wing/room."""
+    if wing and room:
+        return {"$and": [{"wing": wing}, {"room": room}]}
+    if wing:
+        return {"wing": wing}
+    if room:
+        return {"room": room}
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Layer 0 — Identity
 # ---------------------------------------------------------------------------
@@ -44,7 +56,7 @@ class Layer0:
 
     def __init__(self, identity_path: str | None = None):
         if identity_path is None:
-            identity_path = Path("~/.mempalace/identity.txt").expanduser()
+            identity_path = str(Path("~/.mempalace/identity.txt").expanduser())
         self.path = identity_path
         self._text = None
 
@@ -97,15 +109,17 @@ class Layer1:
         docs, metas = [], []
         offset = 0
         while True:
-            kwargs = {"include": ["documents", "metadatas"], "limit": BATCH, "offset": offset}
-            if self.wing:
-                kwargs["where"] = {"wing": self.wing}
             try:
-                batch = col.get(**kwargs)
+                batch = col.get(
+                    include=["documents", "metadatas"],
+                    limit=BATCH,
+                    offset=offset,
+                    where={"wing": self.wing} if self.wing else None,
+                )
             except Exception:
                 break
-            batch_docs = batch.get("documents", [])
-            batch_metas = batch.get("metadatas", [])
+            batch_docs = batch["documents"] or []
+            batch_metas = batch["metadatas"] or []
             if not batch_docs:
                 break
             docs.extend(batch_docs)
@@ -187,7 +201,7 @@ class Layer2:
         cfg = MempalaceConfig()
         self.palace_path = palace_path or cfg.palace_path
 
-    def retrieve(  # noqa: C901
+    def retrieve(
         self,
         wing: str | None = None,
         room: str | None = None,
@@ -200,25 +214,19 @@ class Layer2:
         except Exception:
             return "No palace found."
 
-        where = {}
-        if wing and room:
-            where = {"$and": [{"wing": wing}, {"room": room}]}
-        elif wing:
-            where = {"wing": wing}
-        elif room:
-            where = {"room": room}
-
-        kwargs = {"include": ["documents", "metadatas"], "limit": n_results}
-        if where:
-            kwargs["where"] = where
+        where = _build_where(wing, room)
 
         try:
-            results = col.get(**kwargs)
+            results = col.get(
+                include=["documents", "metadatas"],
+                limit=n_results,
+                where=where,
+            )
         except Exception as e:
             return f"Retrieval error: {e}"
 
-        docs = results.get("documents", [])
-        metas = results.get("metadatas", [])
+        docs = results["documents"] or []
+        metas = results["metadatas"] or []
 
         if not docs:
             label = f"wing={wing}" if wing else ""
@@ -256,7 +264,7 @@ class Layer3:
         cfg = MempalaceConfig()
         self.palace_path = palace_path or cfg.palace_path
 
-    def search(  # noqa: C901
+    def search(
         self,
         query: str,
         wing: str | None = None,
@@ -270,30 +278,21 @@ class Layer3:
         except Exception:
             return "No palace found."
 
-        where = {}
-        if wing and room:
-            where = {"$and": [{"wing": wing}, {"room": room}]}
-        elif wing:
-            where = {"wing": wing}
-        elif room:
-            where = {"room": room}
-
-        kwargs = {
-            "query_texts": [query],
-            "n_results": n_results,
-            "include": ["documents", "metadatas", "distances"],
-        }
-        if where:
-            kwargs["where"] = where
+        where = _build_where(wing, room)
 
         try:
-            results = col.query(**kwargs)
+            results = col.query(
+                query_texts=[query],
+                n_results=n_results,
+                include=["documents", "metadatas", "distances"],
+                where=where,
+            )
         except Exception as e:
             return f"Search error: {e}"
 
-        docs = results["documents"][0]
-        metas = results["metadatas"][0]
-        dists = results["distances"][0]
+        docs = results["documents"][0] if results["documents"] else []
+        metas = results["metadatas"][0] if results["metadatas"] else []
+        dists = results["distances"][0] if results["distances"] else []
 
         if not docs:
             return "No results found."
@@ -329,32 +328,23 @@ class Layer3:
         except Exception:
             return []
 
-        where = {}
-        if wing and room:
-            where = {"$and": [{"wing": wing}, {"room": room}]}
-        elif wing:
-            where = {"wing": wing}
-        elif room:
-            where = {"room": room}
-
-        kwargs = {
-            "query_texts": [query],
-            "n_results": n_results,
-            "include": ["documents", "metadatas", "distances"],
-        }
-        if where:
-            kwargs["where"] = where
+        where = _build_where(wing, room)
 
         try:
-            results = col.query(**kwargs)
+            results = col.query(
+                query_texts=[query],
+                n_results=n_results,
+                include=["documents", "metadatas", "distances"],
+                where=where,
+            )
         except Exception:
             return []
 
         hits = []
         for doc, meta, dist in zip(
-            results["documents"][0],
-            results["metadatas"][0],
-            results["distances"][0],
+            results["documents"][0] if results["documents"] else [],
+            results["metadatas"][0] if results["metadatas"] else [],
+            results["distances"][0] if results["distances"] else [],
             strict=False,
         ):
             hits.append({
@@ -386,7 +376,7 @@ class MemoryStack:
     def __init__(self, palace_path: str | None = None, identity_path: str | None = None):
         cfg = MempalaceConfig()
         self.palace_path = palace_path or cfg.palace_path
-        self.identity_path = identity_path or Path("~/.mempalace/identity.txt").expanduser()
+        self.identity_path = identity_path or str(Path("~/.mempalace/identity.txt").expanduser())
 
         self.l0 = Layer0(self.identity_path)
         self.l1 = Layer1(self.palace_path)

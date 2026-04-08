@@ -393,7 +393,7 @@ def extract_memories(text: str, min_confidence: float = 0.3) -> list[dict]:
         else:
             length_bonus = 0
 
-        max_type = max(scores, key=scores.get)
+        max_type = max(scores, key=lambda k: scores[k])
         max_score = scores[max_type] + length_bonus
 
         # Disambiguate

@@ -220,7 +220,7 @@ def should_skip_dir(dirname: str) -> bool:
     return dirname in SKIP_DIRS or dirname.endswith(".egg-info")
 
 
-def normalize_include_paths(include_ignored: list) -> set:
+def normalize_include_paths(include_ignored: list | None) -> set:
     """Normalize comma-parsed include paths into project-relative POSIX strings."""
     normalized = set()
     for raw_path in include_ignored or []:
@@ -330,7 +330,7 @@ def detect_room(filepath: Path, content: str, rooms: list, project_path: Path) -
             scores[room["name"]] += count
 
     if scores:
-        best = max(scores, key=scores.get)
+        best = max(scores, key=lambda k: scores[k])
         if scores[best] > 0:
             return best
 
@@ -640,7 +640,7 @@ def status(palace_path: str):
 
     # Count by wing and room
     r = col.get(limit=10000, include=["metadatas"])
-    metas = r["metadatas"]
+    metas = r["metadatas"] or []
 
     wing_rooms = defaultdict(lambda: defaultdict(int))
     for m in metas:

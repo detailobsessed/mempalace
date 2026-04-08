@@ -16,12 +16,15 @@ Tools (write):
   mempalace_delete_drawer   — remove a drawer by ID
 """
 
+from __future__ import annotations
+
 import hashlib
 import json
 import logging
 import operator
 import sys
 from datetime import UTC, datetime
+from typing import Any
 
 import chromadb
 
@@ -68,7 +71,7 @@ def tool_status():
     wings = {}
     rooms = {}
     try:
-        all_meta = col.get(include=["metadatas"], limit=10000)["metadatas"]
+        all_meta = col.get(include=["metadatas"], limit=10000)["metadatas"] or []
         for m in all_meta:
             w = m.get("wing", "unknown")
             r = m.get("room", "unknown")
@@ -125,7 +128,7 @@ def tool_list_wings():
         return _no_palace()
     wings = {}
     try:
-        all_meta = col.get(include=["metadatas"], limit=10000)["metadatas"]
+        all_meta = col.get(include=["metadatas"], limit=10000)["metadatas"] or []
         for m in all_meta:
             w = m.get("wing", "unknown")
             wings[w] = wings.get(w, 0) + 1
@@ -140,10 +143,14 @@ def tool_list_rooms(wing: str | None = None):
         return _no_palace()
     rooms = {}
     try:
-        kwargs = {"include": ["metadatas"], "limit": 10000}
-        if wing:
-            kwargs["where"] = {"wing": wing}
-        all_meta = col.get(**kwargs)["metadatas"]
+        all_meta = (
+            col.get(
+                include=["metadatas"],
+                limit=10000,
+                where={"wing": wing} if wing else None,
+            )["metadatas"]
+            or []
+        )
         for m in all_meta:
             r = m.get("room", "unknown")
             rooms[r] = rooms.get(r, 0) + 1
@@ -158,7 +165,7 @@ def tool_get_taxonomy():
         return _no_palace()
     taxonomy = {}
     try:
-        all_meta = col.get(include=["metadatas"], limit=10000)["metadatas"]
+        all_meta = col.get(include=["metadatas"], limit=10000)["metadatas"] or []
         for m in all_meta:
             w = m.get("wing", "unknown")
             r = m.get("room", "unknown")
@@ -191,13 +198,17 @@ def tool_check_duplicate(content: str, threshold: float = 0.9):
             include=["metadatas", "documents", "distances"],
         )
         duplicates = []
-        if results["ids"] and results["ids"][0]:
-            for i, drawer_id in enumerate(results["ids"][0]):
-                dist = results["distances"][0][i]
+        ids = results["ids"][0] if results["ids"] else []
+        distances = results["distances"][0] if results["distances"] else []
+        metadatas = results["metadatas"][0] if results["metadatas"] else []
+        documents = results["documents"][0] if results["documents"] else []
+        if ids:
+            for i, drawer_id in enumerate(ids):
+                dist = distances[i]
                 similarity = round(1 - dist, 3)
                 if similarity >= threshold:
-                    meta = results["metadatas"][0][i]
-                    doc = results["documents"][0][i]
+                    meta = metadatas[i]
+                    doc = documents[i]
                     duplicates.append({
                         "id": drawer_id,
                         "wing": meta.get("wing", "?"),
@@ -412,7 +423,7 @@ def tool_diary_read(agent_name: str, last_n: int = 10):
 
         # Combine and sort by timestamp
         entries = []
-        for doc, meta in zip(results["documents"], results["metadatas"], strict=False):
+        for doc, meta in zip(results["documents"] or [], results["metadatas"] or [], strict=False):
             entries.append({
                 "date": meta.get("date", ""),
                 "timestamp": meta.get("filed_at", ""),
@@ -435,7 +446,7 @@ def tool_diary_read(agent_name: str, last_n: int = 10):
 
 # ==================== MCP PROTOCOL ====================
 
-TOOLS = {
+TOOLS: dict[str, dict[str, Any]] = {
     "mempalace_status": {
         "description": "Palace overview — total drawers, wing and room counts",
         "input_schema": {"type": "object", "properties": {}},
@@ -744,7 +755,8 @@ def handle_request(request):  # noqa: PLR0911
         # Coerce argument types based on input_schema.
         # MCP JSON transport may deliver integers as floats or strings;
         # ChromaDB and Python slicing require native int.
-        schema_props = TOOLS[tool_name]["input_schema"].get("properties", {})
+        tool_def = TOOLS[tool_name]
+        schema_props = tool_def["input_schema"].get("properties", {})
         for key, value in list(tool_args.items()):
             prop_schema = schema_props.get(key, {})
             declared_type = prop_schema.get("type")
@@ -753,7 +765,7 @@ def handle_request(request):  # noqa: PLR0911
             elif declared_type == "number" and not isinstance(value, (int, float)):
                 tool_args[key] = float(value)
         try:
-            result = TOOLS[tool_name]["handler"](**tool_args)
+            result = tool_def["handler"](**tool_args)
             return {
                 "jsonrpc": "2.0",
                 "id": req_id,
