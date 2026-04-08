@@ -298,7 +298,7 @@ def _generate_aaak_bootstrap(people: list, projects: list, wings: list, mode: st
         "  Read naturally — expand codes, treat *markers* as emotional context.",
     ])
 
-    (mempalace_dir / "aaak_entities.md").write_text("\n".join(registry_lines))
+    (mempalace_dir / "aaak_entities.md").write_text("\n".join(registry_lines), encoding="utf-8")
 
     # Critical facts bootstrap (pre-palace — before any mining)
     facts_lines = [
@@ -338,7 +338,7 @@ def _generate_aaak_bootstrap(people: list, projects: list, wings: list, mode: st
         "*This file will be enriched by palace_facts.py after mining.*",
     ])
 
-    (mempalace_dir / "critical_facts.md").write_text("\n".join(facts_lines))
+    (mempalace_dir / "critical_facts.md").write_text("\n".join(facts_lines), encoding="utf-8")
 
 
 def run_onboarding(

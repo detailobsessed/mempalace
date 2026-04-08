@@ -184,14 +184,14 @@ class TestClaudeCodeJsonl:
 class TestNormalize:
     def test_passthrough_with_markers(self, tmp_path):
         f = tmp_path / "chat.txt"
-        f.write_text("> question 1\nanswer 1\n> question 2\nanswer 2\n> question 3\nanswer 3\n")
+        f.write_text("> question 1\nanswer 1\n> question 2\nanswer 2\n> question 3\nanswer 3\n", encoding="utf-8")
         result = normalize(str(f))
         assert result.count(">") >= 3
 
     def test_plain_text_passthrough(self, tmp_path):
         f = tmp_path / "notes.txt"
         content = "Just some plain notes about the project."
-        f.write_text(content)
+        f.write_text(content, encoding="utf-8")
         result = normalize(str(f))
         assert result == content
 
@@ -201,13 +201,13 @@ class TestNormalize:
             {"role": "user", "content": "hello"},
             {"role": "assistant", "content": "hi there"},
         ]
-        f.write_text(json.dumps(data))
+        f.write_text(json.dumps(data), encoding="utf-8")
         result = normalize(str(f))
         assert "> hello" in result
 
     def test_empty_file(self, tmp_path):
         f = tmp_path / "empty.txt"
-        f.write_text("")
+        f.write_text("", encoding="utf-8")
         result = normalize(str(f))
         assert not result
 

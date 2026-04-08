@@ -80,8 +80,8 @@ class TestDetectRoom:
 
 class TestScanProject:
     def test_finds_readable_files(self, tmp_path):
-        (tmp_path / "app.py").write_text("print('hello')")
-        (tmp_path / "notes.md").write_text("# Notes")
+        (tmp_path / "app.py").write_text("print('hello')", encoding="utf-8")
+        (tmp_path / "notes.md").write_text("# Notes", encoding="utf-8")
         (tmp_path / "image.png").write_bytes(b"\x89PNG")
         files = scan_project(str(tmp_path))
         extensions = {f.suffix for f in files}
@@ -92,15 +92,15 @@ class TestScanProject:
     def test_skips_git_dir(self, tmp_path):
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
-        (git_dir / "config.py").write_text("x = 1")
-        (tmp_path / "app.py").write_text("print('hello')")
+        (git_dir / "config.py").write_text("x = 1", encoding="utf-8")
+        (tmp_path / "app.py").write_text("print('hello')", encoding="utf-8")
         files = scan_project(str(tmp_path))
         assert all(".git" not in str(f) for f in files)
 
     def test_skips_config_files(self, tmp_path):
-        (tmp_path / "mempalace.yaml").write_text("wing: test")
-        (tmp_path / ".gitignore").write_text("*.pyc")
-        (tmp_path / "app.py").write_text("print('hello')")
+        (tmp_path / "mempalace.yaml").write_text("wing: test", encoding="utf-8")
+        (tmp_path / ".gitignore").write_text("*.pyc", encoding="utf-8")
+        (tmp_path / "app.py").write_text("print('hello')", encoding="utf-8")
         files = scan_project(str(tmp_path))
         names = {f.name for f in files}
         assert "mempalace.yaml" not in names
@@ -125,19 +125,19 @@ class TestGitignoreMatcher:
 
     def test_from_dir_empty_gitignore(self, tmp_path):
         """Returns None when .gitignore has no valid rules."""
-        (tmp_path / ".gitignore").write_text("\n\n# just comments\n\n")
+        (tmp_path / ".gitignore").write_text("\n\n# just comments\n\n", encoding="utf-8")
         assert GitignoreMatcher.from_dir(tmp_path) is None
 
     def test_from_dir_only_blank_patterns(self, tmp_path):
         """Returns None when patterns reduce to empty strings (line 129-130)."""
-        (tmp_path / ".gitignore").write_text("/\n")
+        (tmp_path / ".gitignore").write_text("/\n", encoding="utf-8")
         assert GitignoreMatcher.from_dir(tmp_path) is None
 
     # --- Parsing: negated, anchored, dir-only, escaped patterns ---
 
     def test_parse_negated_pattern(self, tmp_path):
         """Negated pattern (!) is parsed correctly (lines 117-119)."""
-        (tmp_path / ".gitignore").write_text("*.log\n!important.log\n")
+        (tmp_path / ".gitignore").write_text("*.log\n!important.log\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         assert matcher is not None
         assert len(matcher.rules) == 2
@@ -147,7 +147,7 @@ class TestGitignoreMatcher:
 
     def test_parse_anchored_pattern(self, tmp_path):
         """Anchored pattern (/pattern) is parsed correctly (lines 121-123)."""
-        (tmp_path / ".gitignore").write_text("/build\n")
+        (tmp_path / ".gitignore").write_text("/build\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         assert matcher is not None
         assert matcher.rules[0]["anchored"] is True
@@ -155,7 +155,7 @@ class TestGitignoreMatcher:
 
     def test_parse_dir_only_pattern(self, tmp_path):
         """Directory-only pattern (pattern/) is parsed correctly (lines 125-127)."""
-        (tmp_path / ".gitignore").write_text("logs/\n")
+        (tmp_path / ".gitignore").write_text("logs/\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         assert matcher is not None
         assert matcher.rules[0]["dir_only"] is True
@@ -163,14 +163,14 @@ class TestGitignoreMatcher:
 
     def test_parse_escaped_hash(self, tmp_path):
         r"""Escaped hash (\#) is treated as literal (lines 112-113)."""
-        (tmp_path / ".gitignore").write_text("\\#backup\n")
+        (tmp_path / ".gitignore").write_text("\\#backup\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         assert matcher is not None
         assert matcher.rules[0]["pattern"] == "#backup"
 
     def test_parse_escaped_bang(self, tmp_path):
         r"""Escaped bang (\!) strips backslash then negation check runs (lines 112-113, 117-119)."""
-        (tmp_path / ".gitignore").write_text("\\!important\n")
+        (tmp_path / ".gitignore").write_text("\\!important\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         assert matcher is not None
         # After stripping \, line becomes "!important"; then negation check
@@ -180,7 +180,7 @@ class TestGitignoreMatcher:
 
     def test_parse_comment_skipped(self, tmp_path):
         """Lines starting with # are skipped (line 114-115)."""
-        (tmp_path / ".gitignore").write_text("# a comment\n*.pyc\n")
+        (tmp_path / ".gitignore").write_text("# a comment\n*.pyc\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         assert matcher is not None
         assert len(matcher.rules) == 1
@@ -190,21 +190,21 @@ class TestGitignoreMatcher:
 
     def test_matches_simple_glob(self, tmp_path):
         """Simple glob pattern matches a file."""
-        (tmp_path / ".gitignore").write_text("*.pyc\n")
+        (tmp_path / ".gitignore").write_text("*.pyc\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         f = tmp_path / "module.pyc"
         assert matcher.matches(f, is_dir=False) is True
 
     def test_matches_no_match(self, tmp_path):
         """File not matching any rule returns None."""
-        (tmp_path / ".gitignore").write_text("*.pyc\n")
+        (tmp_path / ".gitignore").write_text("*.pyc\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         f = tmp_path / "module.py"
         assert matcher.matches(f, is_dir=False) is None
 
     def test_matches_path_outside_base(self, tmp_path):
         """Path outside base_dir returns None (line 147-148)."""
-        (tmp_path / ".gitignore").write_text("*.log\n")
+        (tmp_path / ".gitignore").write_text("*.log\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         from pathlib import Path
 
@@ -212,20 +212,20 @@ class TestGitignoreMatcher:
 
     def test_matches_base_dir_itself(self, tmp_path):
         """Matching base_dir itself returns None (empty relative, line 150-151)."""
-        (tmp_path / ".gitignore").write_text("*.log\n")
+        (tmp_path / ".gitignore").write_text("*.log\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         assert matcher.matches(tmp_path, is_dir=True) is None
 
     def test_matches_negation_overrides(self, tmp_path):
         """Negated pattern un-ignores a previously ignored file (line 159)."""
-        (tmp_path / ".gitignore").write_text("*.log\n!important.log\n")
+        (tmp_path / ".gitignore").write_text("*.log\n!important.log\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         assert matcher.matches(tmp_path / "debug.log", is_dir=False) is True
         assert matcher.matches(tmp_path / "important.log", is_dir=False) is False
 
     def test_matches_is_dir_auto_detect(self, tmp_path):
         """is_dir=None triggers auto-detection (line 153-154)."""
-        (tmp_path / ".gitignore").write_text("logs/\n")
+        (tmp_path / ".gitignore").write_text("logs/\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         logs_dir = tmp_path / "logs"
         logs_dir.mkdir()
@@ -235,14 +235,14 @@ class TestGitignoreMatcher:
 
     def test_anchored_pattern_matches_root_only(self, tmp_path):
         """Anchored pattern only matches at the root of base_dir (lines 175-176)."""
-        (tmp_path / ".gitignore").write_text("/build\n")
+        (tmp_path / ".gitignore").write_text("/build\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         assert matcher.matches(tmp_path / "build", is_dir=False) is True
         assert matcher.matches(tmp_path / "src" / "build", is_dir=False) is None
 
     def test_unanchored_pattern_matches_any_depth(self, tmp_path):
         """Unanchored pattern matches at any depth (line 178)."""
-        (tmp_path / ".gitignore").write_text("build\n")
+        (tmp_path / ".gitignore").write_text("build\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         assert matcher.matches(tmp_path / "build", is_dir=False) is True
         assert matcher.matches(tmp_path / "src" / "build", is_dir=False) is True
@@ -251,27 +251,27 @@ class TestGitignoreMatcher:
 
     def test_dir_only_pattern_skips_files(self, tmp_path):
         """dir_only pattern does not match a regular file (lines 167-170)."""
-        (tmp_path / ".gitignore").write_text("logs/\n")
+        (tmp_path / ".gitignore").write_text("logs/\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         # File named "logs" should not be matched by dir_only rule
         assert matcher.matches(tmp_path / "logs", is_dir=False) is None
 
     def test_dir_only_pattern_matches_directory(self, tmp_path):
         """dir_only pattern matches a directory."""
-        (tmp_path / ".gitignore").write_text("logs/\n")
+        (tmp_path / ".gitignore").write_text("logs/\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         assert matcher.matches(tmp_path / "logs", is_dir=True) is True
 
     def test_dir_only_matches_file_inside_dir(self, tmp_path):
         """dir_only pattern matches files inside a matching directory (line 168)."""
-        (tmp_path / ".gitignore").write_text("logs/\n")
+        (tmp_path / ".gitignore").write_text("logs/\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         # A file inside "logs/" — parts[:-1] = ["logs"], should match
         assert matcher.matches(tmp_path / "logs" / "app.log", is_dir=False) is True
 
     def test_dir_only_anchored_multi_part(self, tmp_path):
         """dir_only + anchored with multi-part pattern (lines 171-172)."""
-        (tmp_path / ".gitignore").write_text("/build/output/\n")
+        (tmp_path / ".gitignore").write_text("/build/output/\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         assert matcher.matches(tmp_path / "build" / "output", is_dir=True) is True
         assert matcher.matches(tmp_path / "other" / "build" / "output", is_dir=True) is None
@@ -280,7 +280,7 @@ class TestGitignoreMatcher:
 
     def test_double_star_glob_matches_nested(self, tmp_path):
         """** pattern matches arbitrary depth (line 190-191)."""
-        (tmp_path / ".gitignore").write_text("logs/**/*.log\n")
+        (tmp_path / ".gitignore").write_text("logs/**/*.log\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         assert matcher.matches(tmp_path / "logs" / "app.log", is_dir=False) is True
         assert matcher.matches(tmp_path / "logs" / "sub" / "debug.log", is_dir=False) is True
@@ -288,39 +288,39 @@ class TestGitignoreMatcher:
 
     def test_double_star_no_match(self, tmp_path):
         """** pattern doesn't match when prefix is wrong."""
-        (tmp_path / ".gitignore").write_text("logs/**/*.log\n")
+        (tmp_path / ".gitignore").write_text("logs/**/*.log\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         assert matcher.matches(tmp_path / "src" / "app.log", is_dir=False) is None
 
     def test_double_star_at_end(self, tmp_path):
         """Trailing ** matches everything below (line 183-184, 186-187)."""
-        (tmp_path / ".gitignore").write_text("dist/**\n")
+        (tmp_path / ".gitignore").write_text("dist/**\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         assert matcher.matches(tmp_path / "dist" / "bundle.js", is_dir=False) is True
         assert matcher.matches(tmp_path / "dist" / "a" / "b.js", is_dir=False) is True
 
     def test_double_star_remaining_all_stars(self, tmp_path):
         """When path is exhausted, remaining ** parts all pass (line 187)."""
-        (tmp_path / ".gitignore").write_text("dist/**/**\n")
+        (tmp_path / ".gitignore").write_text("dist/**/**\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         assert matcher.matches(tmp_path / "dist", is_dir=False) is True
 
     def test_multi_part_pattern_no_double_star(self, tmp_path):
         """Multi-part pattern without ** uses exact matching (line 193-196)."""
-        (tmp_path / ".gitignore").write_text("src/generated\n")
+        (tmp_path / ".gitignore").write_text("src/generated\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         assert matcher.matches(tmp_path / "src" / "generated", is_dir=False) is True
         assert matcher.matches(tmp_path / "lib" / "generated", is_dir=False) is None
 
     def test_match_from_root_pattern_longer_than_path(self, tmp_path):
         """Pattern with more parts than path doesn't match (line 186)."""
-        (tmp_path / ".gitignore").write_text("a/b/c/d\n")
+        (tmp_path / ".gitignore").write_text("a/b/c/d\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         assert matcher.matches(tmp_path / "a" / "b", is_dir=False) is None
 
     def test_fnmatch_mismatch_returns_false(self, tmp_path):
         """fnmatch mismatch at a part returns False (line 193-194)."""
-        (tmp_path / ".gitignore").write_text("src/*.py\n")
+        (tmp_path / ".gitignore").write_text("src/*.py\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
         assert matcher.matches(tmp_path / "src" / "module.js", is_dir=False) is None
         assert matcher.matches(tmp_path / "src" / "module.py", is_dir=False) is True

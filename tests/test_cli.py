@@ -241,8 +241,8 @@ class TestCmdMine:
         project = tmp_path / "myproject"
         project.mkdir()
         yaml_content = "wing: myproject\nrooms:\n  - name: general\n    description: All project files\n"
-        (project / "mempalace.yaml").write_text(yaml_content)
-        (project / "hello.py").write_text("# A simple hello world\n" + "print('hello')\n" * 20)
+        (project / "mempalace.yaml").write_text(yaml_content, encoding="utf-8")
+        (project / "hello.py").write_text("# A simple hello world\n" + "print('hello')\n" * 20, encoding="utf-8")
         return str(project)
 
     def test_mine_dry_run(self, tmp_path, capsys):
@@ -439,7 +439,7 @@ class TestCmdCompress:
     def test_compress_with_entity_config(self, tmp_path, capsys):
         palace_path = _make_palace(tmp_path, _default_drawers(1))
         config_file = tmp_path / "entities.json"
-        config_file.write_text('{"people": ["Alice"], "projects": ["TestApp"]}')
+        config_file.write_text('{"people": ["Alice"], "projects": ["TestApp"]}', encoding="utf-8")
 
         args = argparse.Namespace(
             palace=palace_path,
@@ -547,7 +547,7 @@ class TestCmdInit:
     def test_init_creates_config(self, tmp_path, capsys, monkeypatch):
         project_dir = tmp_path / "project"
         project_dir.mkdir()
-        (project_dir / "main.py").write_text("print('hello')\n")
+        (project_dir / "main.py").write_text("print('hello')\n", encoding="utf-8")
 
         monkeypatch.setattr("mempalace.cli.MempalaceConfig", _fake_config(str(tmp_path / "palace")))
 

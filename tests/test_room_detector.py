@@ -48,15 +48,15 @@ class TestDetectRoomsFromFolders:
 
 class TestDetectRoomsFromFiles:
     def test_detects_from_filenames(self, tmp_path):
-        (tmp_path / "test_app.py").write_text("pass")
-        (tmp_path / "test_utils.py").write_text("pass")
-        (tmp_path / "test_models.py").write_text("pass")
+        (tmp_path / "test_app.py").write_text("pass", encoding="utf-8")
+        (tmp_path / "test_utils.py").write_text("pass", encoding="utf-8")
+        (tmp_path / "test_models.py").write_text("pass", encoding="utf-8")
         rooms = detect_rooms_from_files(str(tmp_path))
         room_names = {r["name"] for r in rooms}
         assert "testing" in room_names
 
     def test_fallback_to_general(self, tmp_path):
-        (tmp_path / "random.xyz").write_text("data")
+        (tmp_path / "random.xyz").write_text("data", encoding="utf-8")
         rooms = detect_rooms_from_files(str(tmp_path))
         room_names = {r["name"] for r in rooms}
         assert "general" in room_names
@@ -71,6 +71,6 @@ class TestSaveConfig:
         save_config(str(tmp_path), "myproject", rooms)
         config_path = tmp_path / "mempalace.yaml"
         assert config_path.exists()
-        content = config_path.read_text()
+        content = config_path.read_text(encoding="utf-8")
         assert "myproject" in content
         assert "backend" in content

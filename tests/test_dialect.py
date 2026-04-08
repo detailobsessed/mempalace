@@ -22,7 +22,7 @@ class TestDialectInit:
     def test_from_config(self, tmp_path):
         config = {"entities": {"Alice": "ALC"}, "skip_names": ["Sherlock"]}
         cfg_file = tmp_path / "entities.json"
-        cfg_file.write_text(json.dumps(config))
+        cfg_file.write_text(json.dumps(config), encoding="utf-8")
         d = Dialect.from_config(str(cfg_file))
         assert d.entity_codes["Alice"] == "ALC"
         assert "sherlock" in d.skip_names
@@ -31,7 +31,7 @@ class TestDialectInit:
         d = Dialect(entities={"Alice": "ALC"})
         out = tmp_path / "out.json"
         d.save_config(str(out))
-        loaded = json.loads(out.read_text())
+        loaded = json.loads(out.read_text(encoding="utf-8"))
         assert "Alice" in loaded["entities"]
 
 
@@ -257,7 +257,7 @@ class TestGenerateLayer1:
                 {"from": "z-001", "to": "z-002", "label": "related:planning phase"},
             ],
         }
-        (tmp_path / "file_001.json").write_text(json.dumps(zettel_data))
+        (tmp_path / "file_001.json").write_text(json.dumps(zettel_data), encoding="utf-8")
 
         d = Dialect(entities={"Alice": "ALC"})
         result = d.generate_layer1(str(tmp_path))
@@ -287,13 +287,13 @@ class TestGenerateLayer1:
             ],
             "tunnels": [],
         }
-        (tmp_path / "file_001.json").write_text(json.dumps(zettel_data))
+        (tmp_path / "file_001.json").write_text(json.dumps(zettel_data), encoding="utf-8")
         out = tmp_path / "LAYER1.aaak"
 
         d = Dialect()
         d.generate_layer1(str(tmp_path), output_path=str(out))
         assert out.exists()
-        assert "LAYER 1" in out.read_text()
+        assert "LAYER 1" in out.read_text(encoding="utf-8")
 
     def test_with_identity_sections(self, tmp_path):
         """generate_layer1 includes identity sections when provided."""
@@ -317,7 +317,7 @@ class TestGenerateLayer1:
             ],
             "tunnels": [],
         }
-        (tmp_path / "file_001.json").write_text(json.dumps(zettel_data))
+        (tmp_path / "file_001.json").write_text(json.dumps(zettel_data), encoding="utf-8")
 
         d = Dialect()
         result = d.generate_layer1(
@@ -335,7 +335,7 @@ class TestGenerateLayer1:
 
     def test_skips_non_json(self, tmp_path):
         """generate_layer1 ignores non-JSON files."""
-        (tmp_path / "notes.txt").write_text("not json")
+        (tmp_path / "notes.txt").write_text("not json", encoding="utf-8")
         d = Dialect()
         result = d.generate_layer1(str(tmp_path))
         assert "LAYER 1" in result
@@ -366,7 +366,7 @@ class TestCompressFile:
             "tunnels": [],
         }
         f = tmp_path / "file_002.json"
-        f.write_text(json.dumps(data))
+        f.write_text(json.dumps(data), encoding="utf-8")
 
         d = Dialect(entities={"Bob": "BOB"})
         result = d.compress_file(str(f))
@@ -396,7 +396,7 @@ class TestCompressFile:
             "tunnels": [],
         }
         f = tmp_path / "file_003.json"
-        f.write_text(json.dumps(data))
+        f.write_text(json.dumps(data), encoding="utf-8")
         out = tmp_path / "compressed.aaak"
 
         d = Dialect()
@@ -428,7 +428,7 @@ class TestCompressAll:
                 ],
                 "tunnels": [],
             }
-            (tmp_path / f"file_{i:03d}.json").write_text(json.dumps(data))
+            (tmp_path / f"file_{i:03d}.json").write_text(json.dumps(data), encoding="utf-8")
 
         d = Dialect()
         result = d.compress_all(str(tmp_path))
@@ -457,7 +457,7 @@ class TestCompressAll:
             ],
             "tunnels": [],
         }
-        (tmp_path / "file_001.json").write_text(json.dumps(data))
+        (tmp_path / "file_001.json").write_text(json.dumps(data), encoding="utf-8")
         out = tmp_path / "ALL.aaak"
 
         d = Dialect()
@@ -466,7 +466,7 @@ class TestCompressAll:
 
     def test_skips_non_json_files(self, tmp_path):
         """compress_all ignores non-JSON files in the directory."""
-        (tmp_path / "readme.txt").write_text("not json")
+        (tmp_path / "readme.txt").write_text("not json", encoding="utf-8")
         data = {
             "source_file": "001-test.txt",
             "zettels": [
@@ -487,7 +487,7 @@ class TestCompressAll:
             ],
             "tunnels": [],
         }
-        (tmp_path / "file_001.json").write_text(json.dumps(data))
+        (tmp_path / "file_001.json").write_text(json.dumps(data), encoding="utf-8")
 
         d = Dialect()
         result = d.compress_all(str(tmp_path))

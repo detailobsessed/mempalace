@@ -50,7 +50,7 @@ def _load_known_names_config(force_reload: bool = False):
 
     if _KNOWN_NAMES_PATH.exists():
         try:
-            _KNOWN_NAMES_CACHE = json.loads(_KNOWN_NAMES_PATH.read_text())
+            _KNOWN_NAMES_CACHE = json.loads(_KNOWN_NAMES_PATH.read_text(encoding="utf-8"))
             return _KNOWN_NAMES_CACHE  # noqa: TRY300
         except json.JSONDecodeError, OSError:
             pass
@@ -217,7 +217,7 @@ def split_file(filepath, output_dir, dry_run=False):
         if dry_run:
             print(f"  [{i + 1}/{len(boundaries) - 1}] {name}  ({len(chunk)} lines)")
         else:
-            out_path.write_text("".join(chunk))
+            out_path.write_text("".join(chunk), encoding="utf-8")
             print(f"  ✓ {name}  ({len(chunk)} lines)")
 
         written.append(out_path)
@@ -256,7 +256,7 @@ def main():
 
     mega_files = []
     for f in files:
-        lines = f.read_text(errors="replace").splitlines(keepends=True)
+        lines = f.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)
         boundaries = find_session_boundaries(lines)
         if len(boundaries) >= args.min_sessions:
             mega_files.append((f, len(boundaries)))

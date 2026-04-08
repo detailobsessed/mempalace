@@ -292,7 +292,7 @@ class EntityRegistry:
         path = (Path(config_dir) / "entity_registry.json") if config_dir else cls.DEFAULT_PATH
         if path.exists():
             try:
-                data = json.loads(path.read_text())
+                data = json.loads(path.read_text(encoding="utf-8"))
                 return cls(data, path)
             except json.JSONDecodeError, OSError:
                 pass
@@ -300,7 +300,7 @@ class EntityRegistry:
 
     def save(self):
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(json.dumps(self._data, indent=2))
+        self._path.write_text(json.dumps(self._data, indent=2), encoding="utf-8")
 
     @staticmethod
     def _empty() -> dict:

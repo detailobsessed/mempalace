@@ -49,7 +49,7 @@ class TestEntityRegistryLoadSave:
         assert "MemPalace" in reg2.projects
 
     def test_load_corrupt_json(self, tmp_path):
-        (tmp_path / "entity_registry.json").write_text("not json{{{")
+        (tmp_path / "entity_registry.json").write_text("not json{{{", encoding="utf-8")
         reg = EntityRegistry.load(tmp_path)
         assert reg.people == {}
 

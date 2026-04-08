@@ -50,13 +50,14 @@ def project_dir(tmp_path):
     proj.mkdir()
     # Create mempalace.yaml
     (proj / "mempalace.yaml").write_text(
-        "wing: myproject\nrooms:\n  - name: backend\n    description: Backend code\n  - name: general\n    description: Everything else\n"
+        "wing: myproject\nrooms:\n  - name: backend\n    description: Backend code\n  - name: general\n    description: Everything else\n",
+        encoding="utf-8",
     )
     # Create some source files
     backend = proj / "backend"
     backend.mkdir()
-    (backend / "app.py").write_text("# Backend application\nimport flask\n" + "def handle_request():\n    pass\n" * 20)
-    (proj / "notes.md").write_text("# Project Notes\n" + "This is a note about the project.\n" * 20)
+    (backend / "app.py").write_text("# Backend application\nimport flask\n" + "def handle_request():\n    pass\n" * 20, encoding="utf-8")
+    (proj / "notes.md").write_text("# Project Notes\n" + "This is a note about the project.\n" * 20, encoding="utf-8")
     return proj
 
 
@@ -84,7 +85,7 @@ def convo_dir(tmp_path):
         "> Thanks for the help with debugging\n"
         "You're welcome! Let me know if you need more help.\n"
     )
-    (cdir / "chat1.md").write_text(exchange_content)
+    (cdir / "chat1.md").write_text(exchange_content, encoding="utf-8")
     # Plain text file (paragraph chunking fallback)
     plain_content = (
         "We decided to switch to PostgreSQL instead of MySQL.\n"
@@ -94,7 +95,7 @@ def convo_dir(tmp_path):
         "Overall this was a good trade-off for the project going forward.\n"
         "We migrated all data successfully without any downtime issues.\n"
     )
-    (cdir / "notes.txt").write_text(plain_content)
+    (cdir / "notes.txt").write_text(plain_content, encoding="utf-8")
     return cdir
 
 
@@ -118,7 +119,7 @@ class TestLoadConfig:
     def test_legacy_fallback(self, tmp_path):
         proj = tmp_path / "legacy"
         proj.mkdir()
-        (proj / "mempal.yaml").write_text("wing: legacy_wing\nrooms:\n  - name: stuff\n    description: things\n")
+        (proj / "mempal.yaml").write_text("wing: legacy_wing\nrooms:\n  - name: stuff\n    description: things\n", encoding="utf-8")
         config = load_config(str(proj))
         assert config["wing"] == "legacy_wing"
 
@@ -222,7 +223,7 @@ class TestProcessFile:
 
     def test_process_file_tiny_file_skipped(self, project_dir, palace_path):
         tiny = project_dir / "tiny.py"
-        tiny.write_text("x=1")
+        tiny.write_text("x=1", encoding="utf-8")
         col = get_collection(palace_path)
         rooms = [{"name": "general", "description": "All"}]
         count = process_file(
@@ -333,7 +334,7 @@ class TestScanConvos:
     def test_skips_excluded_dirs(self, convo_dir):
         venv = convo_dir / ".venv"
         venv.mkdir()
-        (venv / "stray.txt").write_text("should be skipped")
+        (venv / "stray.txt").write_text("should be skipped", encoding="utf-8")
         files = scan_convos(str(convo_dir))
         assert all(".venv" not in str(f) for f in files)
 
@@ -416,7 +417,7 @@ def _make_mega_file(directory, filename="mega.txt", num_sessions=3):
         lines.extend(f"Session {i} line {j}: doing some work on the project." for j in range(15))
         lines.append("")
     path = directory / filename
-    path.write_text("\n".join(lines))
+    path.write_text("\n".join(lines), encoding="utf-8")
     return path
 
 
@@ -444,7 +445,7 @@ class TestSplitFile:
         """A file with only one session is not a mega-file."""
         content = "Claude Code v1.0.0\nSome content\n" * 20
         path = tmp_path / "single.txt"
-        path.write_text(content)
+        path.write_text(content, encoding="utf-8")
         output_dir = tmp_path / "output"
         output_dir.mkdir()
         written = split_file(str(path), str(output_dir))
@@ -515,7 +516,7 @@ def entity_files(tmp_path):
         "Alice decided to push the code. Hey Alice, can you review this?\n"
         "Thanks Alice for the help. Alice wrote the tests.\n"
     )
-    (prose_dir / "chat.txt").write_text(person_content)
+    (prose_dir / "chat.txt").write_text(person_content, encoding="utf-8")
 
     # File with project-like entity
     project_content = (
@@ -525,7 +526,7 @@ def entity_files(tmp_path):
         "import MemPalace in your script. The MemPalace pipeline works.\n"
         "pip install MemPalace to get started. MemPalace-core is stable.\n"
     )
-    (prose_dir / "project.md").write_text(project_content)
+    (prose_dir / "project.md").write_text(project_content, encoding="utf-8")
 
     return prose_dir
 
@@ -540,7 +541,7 @@ class TestDetectEntities:
 
     def test_empty_files_no_crash(self, tmp_path):
         empty = tmp_path / "empty.txt"
-        empty.write_text("")
+        empty.write_text("", encoding="utf-8")
         result = detect_entities([empty])
         assert result == {"people": [], "projects": [], "uncertain": []}
 
@@ -609,7 +610,7 @@ class TestScanForDetection:
         d = tmp_path / "many"
         d.mkdir()
         for i in range(20):
-            (d / f"file{i}.txt").write_text(f"Content {i}\n" * 10)
+            (d / f"file{i}.txt").write_text(f"Content {i}\n" * 10, encoding="utf-8")
         files = scan_for_detection(str(d), max_files=5)
         assert len(files) <= 5
 
@@ -617,8 +618,8 @@ class TestScanForDetection:
         """When fewer than 3 prose files, includes all readable files."""
         d = tmp_path / "mixed"
         d.mkdir()
-        (d / "only.txt").write_text("one prose file\n" * 10)
-        (d / "code.py").write_text("print('hello')\n" * 10)
+        (d / "only.txt").write_text("one prose file\n" * 10, encoding="utf-8")
+        (d / "code.py").write_text("print('hello')\n" * 10, encoding="utf-8")
         files = scan_for_detection(str(d))
         extensions = {f.suffix for f in files}
         # Should include .py since fewer than 3 prose files
@@ -627,9 +628,9 @@ class TestScanForDetection:
     def test_skips_excluded_dirs(self, tmp_path):
         d = tmp_path / "proj"
         d.mkdir()
-        (d / "readme.md").write_text("Hello\n" * 10)
+        (d / "readme.md").write_text("Hello\n" * 10, encoding="utf-8")
         venv = d / ".venv"
         venv.mkdir()
-        (venv / "stray.txt").write_text("should skip")
+        (venv / "stray.txt").write_text("should skip", encoding="utf-8")
         files = scan_for_detection(str(d))
         assert all(".venv" not in str(f) for f in files)

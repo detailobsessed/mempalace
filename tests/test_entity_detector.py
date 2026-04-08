@@ -134,7 +134,8 @@ class TestDetectEntitiesIntegration:
         f1.write_text(
             "Alice said hello. Alice asked about it. Alice laughed.\n"
             "Alice told me the plan. Alice smiled at everyone.\n"
-            "Bob: hey there\nBob: how are you\nBob: see you later\n" * 3
+            "Bob: hey there\nBob: how are you\nBob: see you later\n" * 3,
+            encoding="utf-8",
         )
         detected = detect_entities([f1])
         assert "people" in detected
@@ -144,8 +145,8 @@ class TestDetectEntitiesIntegration:
 
 class TestScanForDetectionIntegration:
     def test_scan_for_detection(self, tmp_path):
-        (tmp_path / "notes.md").write_text("test content")
-        (tmp_path / "journal.txt").write_text("more content")
-        (tmp_path / "app.py").write_text("code here")
+        (tmp_path / "notes.md").write_text("test content", encoding="utf-8")
+        (tmp_path / "journal.txt").write_text("more content", encoding="utf-8")
+        (tmp_path / "app.py").write_text("code here", encoding="utf-8")
         files = scan_for_detection(str(tmp_path))
         assert len(files) > 0

@@ -184,8 +184,8 @@ class TestRoomDetectorInteractive:
         proj = tmp_path / "myproject"
         proj.mkdir()
         (proj / "backend").mkdir()
-        (proj / "app.py").write_text("print('hello')\n" * 5)
-        (proj / "backend" / "server.py").write_text("import flask\n" * 5)
+        (proj / "app.py").write_text("print('hello')\n" * 5, encoding="utf-8")
+        (proj / "backend" / "server.py").write_text("import flask\n" * 5, encoding="utf-8")
 
         # Accept defaults
         monkeypatch.setattr("builtins.input", lambda _: "")

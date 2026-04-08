@@ -134,7 +134,7 @@ class TestLoadKnownPeople:
     def test_loads_from_json_list(self, tmp_path):
         """When config is a plain JSON list, it returns that list."""
         names_file = tmp_path / "known_names.json"
-        names_file.write_text(json.dumps(["TestPerson1", "TestPerson2"]))
+        names_file.write_text(json.dumps(["TestPerson1", "TestPerson2"]), encoding="utf-8")
         import mempalace.split_mega_files as smf
 
         old_path = smf._KNOWN_NAMES_PATH
@@ -151,7 +151,7 @@ class TestLoadKnownPeople:
     def test_loads_from_json_dict(self, tmp_path):
         """When config is a dict with 'names' key, extracts names."""
         names_file = tmp_path / "known_names.json"
-        names_file.write_text(json.dumps({"names": ["Alpha", "Beta"]}))
+        names_file.write_text(json.dumps({"names": ["Alpha", "Beta"]}), encoding="utf-8")
         import mempalace.split_mega_files as smf
 
         old_path = smf._KNOWN_NAMES_PATH
@@ -177,7 +177,8 @@ class TestLoadUsernameMap:
             json.dumps({
                 "names": ["Alice"],
                 "username_map": {"jdoe": "John"},
-            })
+            }),
+            encoding="utf-8",
         )
         import mempalace.split_mega_files as smf
 
