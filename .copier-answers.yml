@@ -17,4 +17,4 @@ repository_provider: github.com
 use_blacksmith_runners: false
 use_ci: true
 use_custom_pypi_index: false
-use_semantic_release: true
+use_semantic_release: false
