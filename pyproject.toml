@@ -153,6 +153,12 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+"scripts/**" = [
+    "T201",       # CLI scripts — print is the primary output mechanism
+    "S404",       # subprocess use is intentional in install scripts
+    "S603",       # subprocess call with trusted input
+    "S607",       # partial executable path is fine when resolved via shutil.which
+]
 "src/mempalace/**" = [
     "T201",       # CLI app — print is the primary output mechanism
     "PLC0415",    # Lazy imports for fast CLI startup
