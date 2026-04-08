@@ -10,6 +10,8 @@ from pathlib import Path
 
 import chromadb
 
+from .config import build_where as _build_where
+
 logger = logging.getLogger("mempalace_mcp")
 
 
@@ -17,7 +19,7 @@ class SearchError(Exception):
     """Raised when search cannot proceed (e.g. no palace found)."""
 
 
-def search(  # noqa: C901
+def search(
     query: str,
     palace_path: str,
     wing: str | None = None,
@@ -38,33 +40,24 @@ def search(  # noqa: C901
         raise SearchError(msg) from None
 
     # Build where filter
-    where = {}
-    if wing and room:
-        where = {"$and": [{"wing": wing}, {"room": room}]}
-    elif wing:
-        where = {"wing": wing}
-    elif room:
-        where = {"room": room}
+    where = _build_where(wing, room)
 
     try:
-        kwargs = {
-            "query_texts": [query],
-            "n_results": n_results,
-            "include": ["documents", "metadatas", "distances"],
-        }
-        if where:
-            kwargs["where"] = where
-
-        results = col.query(**kwargs)
+        results = col.query(
+            query_texts=[query],
+            n_results=n_results,
+            include=["documents", "metadatas", "distances"],
+            where=where,
+        )
 
     except Exception as e:
         print(f"\n  Search error: {e}")
         msg = f"Search error: {e}"
         raise SearchError(msg) from e
 
-    docs = results["documents"][0]
-    metas = results["metadatas"][0]
-    dists = results["distances"][0]
+    docs = results["documents"][0] if results["documents"] else []
+    metas = results["metadatas"][0] if results["metadatas"] else []
+    dists = results["distances"][0] if results["distances"] else []
 
     if not docs:
         print(f'\n  No results found for: "{query}"')
@@ -113,30 +106,21 @@ def search_memories(query: str, palace_path: str, wing: str | None = None, room:
         }
 
     # Build where filter
-    where = {}
-    if wing and room:
-        where = {"$and": [{"wing": wing}, {"room": room}]}
-    elif wing:
-        where = {"wing": wing}
-    elif room:
-        where = {"room": room}
+    where = _build_where(wing, room)
 
     try:
-        kwargs = {
-            "query_texts": [query],
-            "n_results": n_results,
-            "include": ["documents", "metadatas", "distances"],
-        }
-        if where:
-            kwargs["where"] = where
-
-        results = col.query(**kwargs)
+        results = col.query(
+            query_texts=[query],
+            n_results=n_results,
+            include=["documents", "metadatas", "distances"],
+            where=where,
+        )
     except Exception as e:
         return {"error": f"Search error: {e}"}
 
-    docs = results["documents"][0]
-    metas = results["metadatas"][0]
-    dists = results["distances"][0]
+    docs = results["documents"][0] if results["documents"] else []
+    metas = results["metadatas"][0] if results["metadatas"] else []
+    dists = results["distances"][0] if results["distances"] else []
 
     hits = []
     for doc, meta, dist in zip(docs, metas, dists, strict=False):

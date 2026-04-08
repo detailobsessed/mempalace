@@ -197,8 +197,8 @@ def cmd_repair(args):  # noqa: PLR0915, PLR0914
     while offset < total:
         batch = col.get(limit=batch_size, offset=offset, include=["documents", "metadatas"])
         all_ids.extend(batch["ids"])
-        all_docs.extend(batch["documents"])
-        all_metas.extend(batch["metadatas"])
+        all_docs.extend(batch["documents"] or [])
+        all_metas.extend(batch["metadatas"] or [])
         offset += batch_size
     print(f"  Extracted {len(all_ids)} drawers")
 
@@ -265,21 +265,23 @@ def cmd_compress(args):  # noqa: C901, PLR0912, PLR0915, PLR0914
     offset = 0
     while True:
         try:
-            kwargs = {"include": ["documents", "metadatas"], "limit": BATCH, "offset": offset}
-            if where:
-                kwargs["where"] = where
-            batch = col.get(**kwargs)
+            batch = col.get(
+                include=["documents", "metadatas"],
+                limit=BATCH,
+                offset=offset,
+                where=where,
+            )
         except Exception as e:
             if not docs:
                 print(f"\n  Error reading drawers: {e}")
                 sys.exit(1)
             break
-        batch_docs = batch.get("documents", [])
+        batch_docs = batch["documents"] or []
         if not batch_docs:
             break
         docs.extend(batch_docs)
-        metas.extend(batch.get("metadatas", []))
-        ids.extend(batch.get("ids", []))
+        metas.extend(batch["metadatas"] or [])
+        ids.extend(batch["ids"] or [])
         offset += len(batch_docs)
         if len(batch_docs) < BATCH:
             break

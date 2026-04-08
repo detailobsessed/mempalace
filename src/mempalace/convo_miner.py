@@ -198,7 +198,7 @@ def detect_convo_room(content: str) -> str:
         if score > 0:
             scores[room] = score
     if scores:
-        return max(scores, key=scores.get)
+        return max(scores, key=lambda k: scores[k])
     return "general"
 
 
@@ -342,7 +342,9 @@ def mine_convos(  # noqa: C901, PLR0913, PLR0917, PLR0912, PLR0915, PLR0914
         if extract_mode != "general":
             room_counts[room] += 1
 
-        # File each chunk
+        # File each chunk (collection is guaranteed non-None here; dry_run continues above)
+        if collection is None:  # pragma: no cover — unreachable; dry_run continues above
+            continue
         drawers_added = 0
         for chunk in chunks:
             chunk_room = chunk.get("memory_type", room) if extract_mode == "general" else room

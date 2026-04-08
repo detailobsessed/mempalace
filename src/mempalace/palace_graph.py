@@ -15,7 +15,10 @@ Enables queries like:
 No external graph DB needed — built from ChromaDB metadata.
 """
 
+from __future__ import annotations
+
 from collections import Counter, defaultdict
+from typing import Any
 
 import chromadb
 
@@ -45,12 +48,12 @@ def build_graph(col=None, config=None):  # noqa: C901, PLR0912
         return {}, []
 
     total = col.count()
-    room_data = defaultdict(lambda: {"wings": set(), "halls": set(), "count": 0, "dates": set()})
+    room_data: dict[str, dict[str, Any]] = defaultdict(lambda: {"wings": set(), "halls": set(), "count": 0, "dates": set()})
 
     offset = 0
     while offset < total:
         batch = col.get(limit=1000, offset=offset, include=["metadatas"])
-        for meta in batch["metadatas"]:
+        for meta in batch["metadatas"] or []:
             room = meta.get("room", "")
             wing = meta.get("wing", "")
             hall = meta.get("hall", "")
