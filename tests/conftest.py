@@ -13,6 +13,7 @@ instead of the real user profile.
 import os
 import shutil
 import tempfile
+from pathlib import Path
 
 # ── Isolate HOME before any mempalace imports ──────────────────────────
 _original_env = {}
@@ -62,19 +63,19 @@ def tmp_dir():
 @pytest.fixture
 def palace_path(tmp_dir):
     """Path to an empty palace directory inside tmp_dir."""
-    p = os.path.join(tmp_dir, "palace")
-    os.makedirs(p)
+    p = str(Path(tmp_dir) / "palace")
+    Path(p).mkdir(parents=True)
     return p
 
 
 @pytest.fixture
 def config(tmp_dir, palace_path):
     """A MempalaceConfig pointing at the temp palace."""
-    cfg_dir = os.path.join(tmp_dir, "config")
-    os.makedirs(cfg_dir)
+    cfg_dir = str(Path(tmp_dir) / "config")
+    Path(cfg_dir).mkdir(parents=True)
     import json
 
-    with open(os.path.join(cfg_dir, "config.json"), "w") as f:
+    with (Path(cfg_dir) / "config.json").open("w", encoding="utf-8") as f:
         json.dump({"palace_path": palace_path}, f)
     return MempalaceConfig(config_dir=cfg_dir)
 
@@ -83,8 +84,7 @@ def config(tmp_dir, palace_path):
 def collection(palace_path):
     """A ChromaDB collection pre-seeded in the temp palace."""
     client = chromadb.PersistentClient(path=palace_path)
-    col = client.get_or_create_collection("mempalace_drawers")
-    return col
+    return client.get_or_create_collection("mempalace_drawers")
 
 
 @pytest.fixture
@@ -98,14 +98,13 @@ def seeded_collection(collection):
             "drawer_notes_planning_ddd",
         ],
         documents=[
-            "The authentication module uses JWT tokens for session management. "
-            "Tokens expire after 24 hours. Refresh tokens are stored in HttpOnly cookies.",
-            "Database migrations are handled by Alembic. We use PostgreSQL 15 "
-            "with connection pooling via pgbouncer.",
-            "The React frontend uses TanStack Query for server state management. "
-            "All API calls go through a centralized fetch wrapper.",
-            "Sprint planning: migrate auth to passkeys by Q3. "
-            "Evaluate ChromaDB alternatives for vector search.",
+            (
+                "The authentication module uses JWT tokens for session management. "
+                "Tokens expire after 24 hours. Refresh tokens are stored in HttpOnly cookies."
+            ),
+            "Database migrations are handled by Alembic. We use PostgreSQL 15 with connection pooling via pgbouncer.",
+            "The React frontend uses TanStack Query for server state management. All API calls go through a centralized fetch wrapper.",
+            "Sprint planning: migrate auth to passkeys by Q3. Evaluate ChromaDB alternatives for vector search.",
         ],
         metadatas=[
             {
@@ -148,7 +147,7 @@ def seeded_collection(collection):
 @pytest.fixture
 def kg(tmp_dir):
     """An isolated KnowledgeGraph using a temp SQLite file."""
-    db_path = os.path.join(tmp_dir, "test_kg.sqlite3")
+    db_path = str(Path(tmp_dir) / "test_kg.sqlite3")
     return KnowledgeGraph(db_path=db_path)
 
 

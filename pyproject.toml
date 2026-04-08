@@ -1,10 +1,15 @@
+[build-system]
+requires = ["uv_build"]
+build-backend = "uv_build"
+
 [project]
 name = "mempalace"
 version = "3.0.0"
 description = "Give your AI a memory — mine projects and conversations into a searchable palace. No API key required."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.14"
 license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     {name = "milla-jovovich"},
 ]
@@ -17,16 +22,13 @@ classifiers = [
     "Environment :: Console",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Utilities",
 ]
 dependencies = [
-    "chromadb>=0.5.0,<0.7",
-    "pyyaml>=6.0",
+    "chromadb>=1.5.6",
+    "pyyaml>=6.0.3",
 ]
 
 [project.urls]
@@ -35,32 +37,243 @@ Repository = "https://github.com/milla-jovovich/mempalace"
 "Bug Tracker" = "https://github.com/milla-jovovich/mempalace/issues"
 
 [project.scripts]
-mempalace = "mempalace:main"
+mempalace = "mempalace.cli:main"
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0", "ruff>=0.4.0"]
 spellcheck = ["autocorrect>=2.0"]
 
 [dependency-groups]
-dev = ["pytest>=7.0", "ruff>=0.4.0"]
+maintain = [
+    "build>=1.2",
+    "python-semantic-release>=10",
+]
+ci = [
+    "ruff>=0.14",
+    "pytest>=8",
+    "pytest-cov>=6",
+    "pytest-randomly>=3.15",
+    "ty>=0.0.14",
+    "poethepoet>=0.41",
+]
+dev = [
+    "responses>=0.26.0",
+]
+local = [
+    "prek>=0.3.8",
+    "pytest-testmon>=2.2",
+]
+docs = [
+    "markdown-callouts>=0.4",
+    "markdown-exec>=1.10",
+    "mkdocs-coverage>=1.1",
+    "mkdocs-git-revision-date-localized-plugin>=1.4",
+    "mkdocs-llmstxt>=0.4",
+    "mkdocs-minify-plugin>=0.8",
+    "mkdocs-section-index>=0.3.9",
+    "mkdocstrings[python]>=0.27",
+    "zensical",
+]
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["mempalace"]
+[tool.uv]
+default-groups = ["maintain", "ci", "dev", "docs", "local"]
 
 [tool.ruff]
-line-length = 100
-target-version = "py39"
+target-version = "py314"
+line-length = 140
+preview = true
 
 [tool.ruff.lint]
-select = ["E", "F", "W"]
-ignore = ["E501"]
+select = [
+    # Core
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # Pyflakes
+
+    # Modern Python
+    "UP",   # pyupgrade
+    "I",    # isort
+    "FA",   # flake8-future-annotations
+
+    # Code quality
+    "A",    # flake8-builtins
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "C4",   # flake8-comprehensions
+    "PIE",  # flake8-pie
+    "RET",  # flake8-return
+    "RSE",  # flake8-raise
+    "ISC",  # flake8-implicit-str-concat
+    "RUF",  # Ruff-specific rules
+    "FURB", # refurb
+    "FLY",  # flynt
+    "PGH",  # pygrep-hooks
+
+    # Import hygiene
+    "ICN",  # flake8-import-conventions
+    "TID",  # flake8-tidy-imports
+    "TC",   # flake8-type-checking
+
+    # Correctness
+    "DTZ",  # flake8-datetimez
+    "PTH",  # flake8-use-pathlib
+
+    # Error messages
+    "EM",   # flake8-errmsg
+
+    # Complexity
+    "C9",   # mccabe
+
+    # Pylint
+    "PLC",  # pylint conventions
+    "PLE",  # pylint errors
+    "PLR",  # pylint refactor
+    "PLW",  # pylint warnings
+
+    # Performance
+    "PERF", # Perflint
+
+    # Security
+    "S",    # flake8-bandit
+
+    # Testing
+    "PT",   # flake8-pytest-style
+
+    # Error handling
+    "TRY",  # tryceratops
+    "LOG",  # flake8-logging
+
+    # Housekeeping
+    "ARG",  # flake8-unused-arguments
+    "ERA",  # eradicate
+    "T20",  # flake8-print
+]
+ignore = [
+    "TRY003",  # Overly strict — forces custom exception classes for every error message
+    "PLR2004", # Heuristic-heavy codebase — magic values in thresholds/scores are clearer inline
+]
+
+[tool.ruff.lint.per-file-ignores]
+"src/mempalace/**" = [
+    "T201",       # CLI app — print is the primary output mechanism
+    "PLC0415",    # Lazy imports for fast CLI startup
+]
+"tests/**" = [
+    "S101", "S105", "S404", "S603", "S607",  # Allow assert, hardcoded secrets, subprocess in tests
+    "T201",       # Allow print in tests
+    "PLR6301",    # Test methods don't use self
+    "PLR2004",    # Magic values in assertions
+    "PLC0415",    # Lazy imports in test functions
+    "PLC2701",    # Private name imports for testing internals
+    "ARG002",     # Unused method arguments (fixtures)
+    "DTZ005",     # Naive datetime in tests
+    "PLR0904",    # Test classes naturally have many test methods
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pylint]
+# All values are pylint defaults
+
+[tool.ruff.lint.flake8-pytest-style]
+fixture-parentheses = false
+mark-parentheses = false
+
+[tool.ruff.lint.isort]
+known-first-party = ["mempalace"]
 
 [tool.ruff.format]
 quote-style = "double"
+docstring-code-format = true
+docstring-code-line-length = 100
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-v"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning:chromadb",
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+]
+
+[tool.coverage.run]
+branch = true
+parallel = true
+source = ["src/"]
+
+[tool.coverage.report]
+precision = 2
+omit = ["src/*/__init__.py", "src/*/__main__.py"]
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING", "if __name__ == .__main__.:"]
+
+[tool.ty.environment]
+python-version = "3.14"
+python = ".venv"
+
+[tool.coverage.json]
+output = "htmlcov/coverage.json"
+
+[tool.poe.tasks]
+# Setup
+setup = "uv sync"
+
+# Quality checks
+lint = "ruff check ."
+format = "ruff format ."
+typecheck = "ty check ."
+
+# Testing
+test = "pytest -m 'not slow'"
+test-affected = "pytest --testmon --no-cov"
+test-all = "pytest"
+test-cov = "pytest --cov --cov-report=term-missing --cov-report=html"
+
+# Combined tasks
+check.parallel = ["lint", "typecheck"]
+check.ignore_fail = "return_non_zero"
+fix = ["lint --fix", "format"]
+
+# Documentation
+docs = "zensical serve"
+docs-build = "zensical build --clean"
+
+# Pre-commit
+prek = "prek run --all-files"
+
+# Template utilities
+check-template = { shell = "copier check-update || true" }
+update-template = { shell = "copier update --trust . --skip-answered --defaults && uv sync --upgrade && prek autoupdate && echo '  Done'" }
+
+# Git utilities
+tags = "sh -c 'git fetch --tags && git tag --sort=-version:refname'"
+
+# GitHub utilities
+releases = "gh release list --limit 10"
+runs = "gh run list --limit 10"
+checks = "gh pr checks --watch"
+watch = "gh run watch"
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+branch = "bleeding"
+build_command = """
+uv lock --upgrade-package "$PACKAGE_NAME"
+git add uv.lock
+uv build
+"""
+commit_message = "chore(release): {version}"
+tag_format = "{version}"
+allow_zero_version = true
+major_on_zero = false
+
+[tool.semantic_release.changelog]
+mode = "update"
+changelog_file = "CHANGELOG.md"
+
+[tool.semantic_release.commit_parser_options]
+allowed_tags = ["build", "chore", "ci", "deps", "docs", "feat", "fix", "perf", "refactor", "style", "test"]
+minor_tags = ["feat"]
+patch_tags = ["fix", "perf"]

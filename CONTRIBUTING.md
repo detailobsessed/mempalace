@@ -1,92 +1,47 @@
-# Contributing to MemPalace
+# Contributing
 
-Thanks for wanting to help. MemPalace is open source and we welcome contributions of all sizes — from typo fixes to new features.
+Contributions are welcome! Every little bit helps, and credit will always be given.
 
-## Getting Started
+## Environment setup
+
+Fork and clone the repository, then:
 
 ```bash
-git clone https://github.com/milla-jovovich/mempalace.git
 cd mempalace
-pip install -e ".[dev]"    # installs with dev dependencies (pytest, build, twine)
+uv sync
 ```
 
-## Running Tests
+This installs all dependencies including dev tools. If `uv` is not installed, see the [uv installation guide](https://docs.astral.sh/uv/getting-started/installation/).
 
-```bash
-pytest tests/ -v
+Run the CLI with `uv run mempalace [ARGS...]`.
+
+## Tasks
+
+This project uses [poethepoet](https://github.com/nat-n/poethepoet) as a task runner. Run `poe` to list all available tasks. Key tasks:
+
+- `poe check` — lint + type check (parallel)
+- `poe fix` — auto-fix lint issues and format
+- `poe test` — run tests (excluding slow)
+- `poe docs` — serve documentation locally
+
+## Development
+
+1. Create a branch: `git switch -c feature-or-bugfix-name`
+2. Make your changes
+3. Commit — git hooks automatically run formatting, linting, and tests
+
+Don't worry about the changelog — it is generated automatically from commit messages.
+
+## Commit messages
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/). A git hook enforces the format, so you'll get immediate feedback if the message doesn't match:
+
+```
+<type>[(scope)]: Subject
 ```
 
-All tests must pass before submitting a PR. Tests should run without API keys or network access.
+Common types: `feat`, `fix`, `docs`, `refactor`, `test`, `ci`, `chore`, `perf`.
 
-## Running Benchmarks
+## Pull requests
 
-```bash
-# Quick test (20 questions, ~30 seconds)
-python benchmarks/longmemeval_bench.py /path/to/longmemeval_s_cleaned.json --limit 20
-
-# Full benchmark (500 questions, ~5 minutes)
-python benchmarks/longmemeval_bench.py /path/to/longmemeval_s_cleaned.json
-```
-
-See [benchmarks/README.md](benchmarks/README.md) for data download instructions and reproduction guide.
-
-## Project Structure
-
-```
-mempalace/          ← core package (see mempalace/README.md for module guide)
-benchmarks/         ← reproducible benchmark runners
-hooks/              ← Claude Code auto-save hooks
-examples/           ← usage examples
-tests/              ← test suite
-assets/             ← logo + brand
-```
-
-## PR Guidelines
-
-1. Fork the repo and create a feature branch: `git checkout -b feat/my-thing`
-2. Write your code
-3. Add or update tests if applicable
-4. Run `pytest tests/ -v` — everything must pass
-5. Commit with a clear message following [conventional commits](https://www.conventionalcommits.org/):
-   - `feat: add Notion export format`
-   - `fix: handle empty transcript files`
-   - `docs: update MCP tool descriptions`
-   - `bench: add LoCoMo turn-level metrics`
-6. Push to your fork and open a PR against `main`
-
-## Code Style
-
-- **Formatting**: [Ruff](https://docs.astral.sh/ruff/) with 100-char line limit (configured in `pyproject.toml`)
-- **Naming**: `snake_case` for functions/variables, `PascalCase` for classes
-- **Docstrings**: on all modules and public functions
-- **Type hints**: where they improve readability
-- **Dependencies**: minimize. ChromaDB + PyYAML only. Don't add new deps without discussion.
-
-## Good First Issues
-
-Check the [Issues](https://github.com/milla-jovovich/mempalace/issues) tab. Great starting points:
-
-- **New chat formats**: Add import support for Cursor, Copilot, or other AI tool exports
-- **Room detection**: Improve pattern matching in `room_detector_local.py`
-- **Tests**: Increase coverage — especially for `knowledge_graph.py` and `palace_graph.py`
-- **Entity detection**: Better name disambiguation in `entity_detector.py`
-- **Docs**: Improve examples, add tutorials
-
-## Architecture Decisions
-
-If you're planning a significant change, open an issue first to discuss the approach. Key principles:
-
-- **Verbatim first**: Never summarize user content. Store exact words.
-- **Local first**: Everything runs on the user's machine. No cloud dependencies.
-- **Zero API by default**: Core features must work without any API key.
-- **Palace structure matters**: Wings, halls, and rooms aren't cosmetic — they drive a 34% retrieval improvement. Respect the hierarchy.
-
-## Community
-
-- **Discord**: [Join us](https://discord.com/invite/ycTQQCu6kn)
-- **Issues**: Bug reports and feature requests welcome
-- **Discussions**: For questions and ideas
-
-## License
-
-MIT — your contributions will be released under the same license.
+Link to any related issue in the PR description. Keep commits focused — one logical change per commit. We squash-merge PRs, so don't worry about a clean commit history within the PR.

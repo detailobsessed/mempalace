@@ -1,7 +1,32 @@
+# editors
+.idea/
+.vscode/
+
+# python
 *.egg-info/
-dist/
-build/
-__pycache__/
-*.pyc
+*.py[cod]
+.venv/
+.venvs/
+/build/
+/dist/
+
+# secrets
+.env
+.env.*
+!.env.example
+
+# tools
+.coverage*
+.testmondata*
+/.pdm-build/
+/htmlcov/
+/site/
+
+# cache
+.cache/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+__pycache__/
+.claude/settings.local.json
 mempal.yaml

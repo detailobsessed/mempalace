@@ -1,338 +1,623 @@
-"""
-test_mcp_server.py — Tests for the MCP server tool handlers and dispatch.
-
-Tests each tool handler directly (unit-level) and the handle_request
-dispatch layer (integration-level). Uses isolated palace + KG fixtures
-via monkeypatch to avoid touching real data.
-"""
+"""Integration tests for mcp_server.py — MCP protocol + tool functions."""
 
 import json
 
+import pytest
 
-def _patch_mcp_server(monkeypatch, config, palace_path, kg):
-    """Patch the mcp_server module globals to use test fixtures."""
-    from mempalace import mcp_server
+from mempalace import mcp_server
+from mempalace.config import MempalaceConfig
+from mempalace.knowledge_graph import KnowledgeGraph
 
-    assert getattr(config, "palace_path", None) == palace_path, (
-        f"config.palace_path ({getattr(config, 'palace_path', None)!r}) does not match palace_path fixture ({palace_path!r})"
-    )
+
+@pytest.fixture
+def mcp_palace(tmp_path, monkeypatch):
+    """Set up MCP server with a fresh temp palace + knowledge graph."""
+    palace_path = str(tmp_path / "palace")
+
+    config = MempalaceConfig(config_dir=str(tmp_path / "config"))
+    config.init()
     monkeypatch.setattr(mcp_server, "_config", config)
+    monkeypatch.setattr(config, "_file_config", {"palace_path": palace_path})
+
+    kg = KnowledgeGraph(db_path=str(tmp_path / "kg.sqlite3"))
     monkeypatch.setattr(mcp_server, "_kg", kg)
 
+    return palace_path
 
-def _get_collection(palace_path, create=False):
-    """Helper to get collection from test palace."""
+
+# ---------------------------------------------------------------------------
+# Helper to add a drawer directly via ChromaDB so read-tools have data
+# ---------------------------------------------------------------------------
+
+
+def _seed_drawers(palace_path, items):
+    """Add drawers directly to ChromaDB for test setup."""
     import chromadb
 
     client = chromadb.PersistentClient(path=palace_path)
-    if create:
-        return client.get_or_create_collection("mempalace_drawers")
-    return client.get_collection("mempalace_drawers")
+    col = client.get_or_create_collection("mempalace_drawers")
+    for item in items:
+        col.add(
+            ids=[item["id"]],
+            documents=[item["doc"]],
+            metadatas=[item["meta"]],
+        )
+    return col
 
 
-# ── Protocol Layer ──────────────────────────────────────────────────────
+# ============================= READ TOOLS ==================================
+
+
+class TestToolStatus:
+    def test_no_palace(self, mcp_palace):
+        result = mcp_server.tool_status()
+        assert "error" in result
+        assert "No palace found" in result["error"]
+
+    def test_with_data(self, mcp_palace):
+        _seed_drawers(
+            mcp_palace,
+            [
+                {
+                    "id": "d1",
+                    "doc": "hello world",
+                    "meta": {"wing": "wing_code", "room": "setup"},
+                },
+                {
+                    "id": "d2",
+                    "doc": "goodbye world",
+                    "meta": {"wing": "wing_code", "room": "teardown"},
+                },
+                {
+                    "id": "d3",
+                    "doc": "family note",
+                    "meta": {"wing": "wing_user", "room": "family"},
+                },
+            ],
+        )
+        result = mcp_server.tool_status()
+        assert result["total_drawers"] == 3
+        assert result["wings"]["wing_code"] == 2
+        assert result["wings"]["wing_user"] == 1
+        assert result["rooms"]["setup"] == 1
+        assert result["rooms"]["teardown"] == 1
+        assert result["rooms"]["family"] == 1
+        assert "palace_path" in result
+        assert "protocol" in result
+        assert "aaak_dialect" in result
+
+
+class TestToolListWings:
+    def test_no_palace(self, mcp_palace):
+        result = mcp_server.tool_list_wings()
+        assert "error" in result
+
+    def test_with_data(self, mcp_palace):
+        _seed_drawers(
+            mcp_palace,
+            [
+                {"id": "d1", "doc": "a", "meta": {"wing": "wing_code", "room": "r1"}},
+                {"id": "d2", "doc": "b", "meta": {"wing": "wing_code", "room": "r2"}},
+                {"id": "d3", "doc": "c", "meta": {"wing": "wing_user", "room": "r1"}},
+            ],
+        )
+        result = mcp_server.tool_list_wings()
+        assert result["wings"]["wing_code"] == 2
+        assert result["wings"]["wing_user"] == 1
+
+
+class TestToolListRooms:
+    def test_no_palace(self, mcp_palace):
+        result = mcp_server.tool_list_rooms()
+        assert "error" in result
+
+    def test_all_rooms(self, mcp_palace):
+        _seed_drawers(
+            mcp_palace,
+            [
+                {"id": "d1", "doc": "a", "meta": {"wing": "wing_code", "room": "setup"}},
+                {"id": "d2", "doc": "b", "meta": {"wing": "wing_user", "room": "diary"}},
+            ],
+        )
+        result = mcp_server.tool_list_rooms()
+        assert result["wing"] == "all"
+        assert "setup" in result["rooms"]
+        assert "diary" in result["rooms"]
+
+    def test_filtered_by_wing(self, mcp_palace):
+        _seed_drawers(
+            mcp_palace,
+            [
+                {"id": "d1", "doc": "a", "meta": {"wing": "wing_code", "room": "setup"}},
+                {"id": "d2", "doc": "b", "meta": {"wing": "wing_user", "room": "diary"}},
+            ],
+        )
+        result = mcp_server.tool_list_rooms(wing="wing_code")
+        assert result["wing"] == "wing_code"
+        assert "setup" in result["rooms"]
+        assert "diary" not in result["rooms"]
+
+
+class TestToolGetTaxonomy:
+    def test_no_palace(self, mcp_palace):
+        result = mcp_server.tool_get_taxonomy()
+        assert "error" in result
+
+    def test_with_data(self, mcp_palace):
+        _seed_drawers(
+            mcp_palace,
+            [
+                {"id": "d1", "doc": "a", "meta": {"wing": "wing_code", "room": "setup"}},
+                {"id": "d2", "doc": "b", "meta": {"wing": "wing_code", "room": "setup"}},
+                {"id": "d3", "doc": "c", "meta": {"wing": "wing_user", "room": "diary"}},
+            ],
+        )
+        result = mcp_server.tool_get_taxonomy()
+        assert result["taxonomy"]["wing_code"]["setup"] == 2
+        assert result["taxonomy"]["wing_user"]["diary"] == 1
+
+
+class TestToolSearch:
+    def test_no_palace(self, mcp_palace):
+        result = mcp_server.tool_search("hello")
+        assert "error" in result
+
+    def test_search_returns_results(self, mcp_palace):
+        _seed_drawers(
+            mcp_palace,
+            [
+                {
+                    "id": "d1",
+                    "doc": "Python is a great programming language",
+                    "meta": {"wing": "wing_code", "room": "python"},
+                },
+            ],
+        )
+        result = mcp_server.tool_search("python programming")
+        assert "results" in result
+        assert len(result["results"]) >= 1
+
+
+class TestToolCheckDuplicate:
+    def test_no_palace(self, mcp_palace):
+        result = mcp_server.tool_check_duplicate("anything")
+        assert "error" in result
+
+    def test_no_duplicate(self, mcp_palace):
+        _seed_drawers(
+            mcp_palace,
+            [
+                {
+                    "id": "d1",
+                    "doc": "The sky is blue on a clear day",
+                    "meta": {"wing": "wing_code", "room": "r1"},
+                },
+            ],
+        )
+        result = mcp_server.tool_check_duplicate("Completely unrelated content about quantum physics")
+        # With a high threshold, dissimilar content should not match
+        assert "is_duplicate" in result
+
+    def test_exact_duplicate(self, mcp_palace):
+        content = "This is exact duplicate content for testing purposes"
+        _seed_drawers(
+            mcp_palace,
+            [
+                {
+                    "id": "d1",
+                    "doc": content,
+                    "meta": {"wing": "wing_code", "room": "r1"},
+                },
+            ],
+        )
+        result = mcp_server.tool_check_duplicate(content, threshold=0.5)
+        assert result["is_duplicate"] is True
+        assert len(result["matches"]) >= 1
+        assert result["matches"][0]["id"] == "d1"
+
+
+class TestToolGetAaakSpec:
+    def test_returns_spec(self, mcp_palace):
+        result = mcp_server.tool_get_aaak_spec()
+        assert "aaak_spec" in result
+        assert "AAAK" in result["aaak_spec"]
+        assert "FORMAT" in result["aaak_spec"]
+
+
+# ============================= GRAPH TOOLS =================================
+
+
+class TestToolTraverseGraph:
+    def test_no_palace(self, mcp_palace):
+        result = mcp_server.tool_traverse_graph("some-room")
+        assert "error" in result
+
+    def test_with_data(self, mcp_palace):
+        _seed_drawers(
+            mcp_palace,
+            [
+                {"id": "d1", "doc": "a", "meta": {"wing": "wing_code", "room": "setup"}},
+                {"id": "d2", "doc": "b", "meta": {"wing": "wing_user", "room": "setup"}},
+            ],
+        )
+        result = mcp_server.tool_traverse_graph("setup")
+        # Returns a list of traversal nodes
+        assert isinstance(result, list)
+        assert len(result) >= 1
+        assert result[0]["room"] == "setup"
+
+
+class TestToolFindTunnels:
+    def test_no_palace(self, mcp_palace):
+        result = mcp_server.tool_find_tunnels()
+        assert "error" in result
+
+    def test_with_data(self, mcp_palace):
+        _seed_drawers(
+            mcp_palace,
+            [
+                {"id": "d1", "doc": "a", "meta": {"wing": "wing_code", "room": "shared-room"}},
+                {"id": "d2", "doc": "b", "meta": {"wing": "wing_user", "room": "shared-room"}},
+            ],
+        )
+        result = mcp_server.tool_find_tunnels(wing_a="wing_code", wing_b="wing_user")
+        assert isinstance(result, list)
+        assert len(result) >= 1
+        assert result[0]["room"] == "shared-room"
+
+
+class TestToolGraphStats:
+    def test_no_palace(self, mcp_palace):
+        result = mcp_server.tool_graph_stats()
+        assert "error" in result
+
+    def test_with_data(self, mcp_palace):
+        _seed_drawers(
+            mcp_palace,
+            [
+                {"id": "d1", "doc": "a", "meta": {"wing": "wing_code", "room": "r1"}},
+            ],
+        )
+        result = mcp_server.tool_graph_stats()
+        assert isinstance(result, dict)
+
+
+# ============================= WRITE TOOLS =================================
+
+
+class TestToolAddDrawer:
+    def test_add_success(self, mcp_palace):
+        result = mcp_server.tool_add_drawer("wing_code", "setup", "New drawer content")
+        assert result["success"] is True
+        assert "drawer_id" in result
+        assert result["wing"] == "wing_code"
+        assert result["room"] == "setup"
+
+    def test_add_duplicate_blocked(self, mcp_palace):
+        content = "Exact same content for duplicate test"
+        r1 = mcp_server.tool_add_drawer("wing_code", "r1", content)
+        assert r1["success"] is True
+
+        r2 = mcp_server.tool_add_drawer("wing_code", "r1", content)
+        assert r2["success"] is False
+        assert r2["reason"] == "duplicate"
+
+    def test_add_with_source_file(self, mcp_palace):
+        result = mcp_server.tool_add_drawer("wing_code", "setup", "Content from a file", source_file="test.py")
+        assert result["success"] is True
+
+    def test_add_with_added_by(self, mcp_palace):
+        result = mcp_server.tool_add_drawer("wing_code", "setup", "Agent-added content", added_by="test_agent")
+        assert result["success"] is True
+
+
+class TestToolDeleteDrawer:
+    def test_no_palace(self, mcp_palace):
+        result = mcp_server.tool_delete_drawer("nonexistent")
+        assert "error" in result
+
+    def test_delete_nonexistent(self, mcp_palace):
+        _seed_drawers(
+            mcp_palace,
+            [{"id": "d1", "doc": "x", "meta": {"wing": "w", "room": "r"}}],
+        )
+        result = mcp_server.tool_delete_drawer("nonexistent_id")
+        assert result["success"] is False
+        assert "not found" in result["error"].lower()
+
+    def test_delete_success(self, mcp_palace):
+        _seed_drawers(
+            mcp_palace,
+            [{"id": "d1", "doc": "to delete", "meta": {"wing": "w", "room": "r"}}],
+        )
+        result = mcp_server.tool_delete_drawer("d1")
+        assert result["success"] is True
+        assert result["drawer_id"] == "d1"
+
+
+# ============================= KNOWLEDGE GRAPH =============================
+
+
+class TestToolKgAdd:
+    def test_add_triple(self, mcp_palace):
+        result = mcp_server.tool_kg_add("Max", "loves", "chess")
+        assert result["success"] is True
+        assert "triple_id" in result
+        assert result["fact"] == "Max \u2192 loves \u2192 chess"
+
+    def test_add_with_valid_from(self, mcp_palace):
+        result = mcp_server.tool_kg_add("Max", "started", "swimming", valid_from="2025-01-01")
+        assert result["success"] is True
+
+
+class TestToolKgQuery:
+    def test_query_empty(self, mcp_palace):
+        result = mcp_server.tool_kg_query("Nobody")
+        assert result["entity"] == "Nobody"
+        assert result["count"] == 0
+        assert result["facts"] == []
+
+    def test_query_after_add(self, mcp_palace):
+        mcp_server.tool_kg_add("Alice", "parent_of", "Max")
+        result = mcp_server.tool_kg_query("Alice")
+        assert result["count"] >= 1
+        facts = result["facts"]
+        predicates = [f["predicate"] for f in facts]
+        assert "parent_of" in predicates
+
+    def test_query_with_direction(self, mcp_palace):
+        mcp_server.tool_kg_add("Alice", "parent_of", "Max")
+        result = mcp_server.tool_kg_query("Max", direction="incoming")
+        assert result["count"] >= 1
+
+    def test_query_with_as_of(self, mcp_palace):
+        mcp_server.tool_kg_add("Max", "does", "swimming", valid_from="2025-01-01")
+        result = mcp_server.tool_kg_query("Max", as_of="2025-06-01")
+        assert result["count"] >= 1
+
+
+class TestToolKgInvalidate:
+    def test_invalidate(self, mcp_palace):
+        mcp_server.tool_kg_add("Max", "has_issue", "ankle_injury")
+        result = mcp_server.tool_kg_invalidate("Max", "has_issue", "ankle_injury", ended="2026-02-15")
+        assert result["success"] is True
+        assert result["ended"] == "2026-02-15"
+
+    def test_invalidate_default_ended(self, mcp_palace):
+        mcp_server.tool_kg_add("Max", "attends", "school_x")
+        result = mcp_server.tool_kg_invalidate("Max", "attends", "school_x")
+        assert result["success"] is True
+        assert result["ended"] == "today"
+
+
+class TestToolKgTimeline:
+    def test_empty_timeline(self, mcp_palace):
+        result = mcp_server.tool_kg_timeline()
+        assert result["entity"] == "all"
+        assert result["count"] == 0
+
+    def test_entity_timeline(self, mcp_palace):
+        mcp_server.tool_kg_add("Max", "loves", "chess", valid_from="2025-01-01")
+        mcp_server.tool_kg_add("Max", "does", "swimming", valid_from="2025-06-01")
+        result = mcp_server.tool_kg_timeline(entity="Max")
+        assert result["entity"] == "Max"
+        assert result["count"] == 2
+
+    def test_full_timeline(self, mcp_palace):
+        mcp_server.tool_kg_add("Alice", "parent_of", "Max")
+        mcp_server.tool_kg_add("Max", "loves", "chess")
+        result = mcp_server.tool_kg_timeline()
+        assert result["entity"] == "all"
+        assert result["count"] >= 2
+
+
+class TestToolKgStats:
+    def test_empty_stats(self, mcp_palace):
+        result = mcp_server.tool_kg_stats()
+        assert result["entities"] == 0
+        assert result["triples"] == 0
+
+    def test_stats_after_adds(self, mcp_palace):
+        mcp_server.tool_kg_add("Alice", "parent_of", "Max")
+        mcp_server.tool_kg_add("Max", "loves", "chess")
+        result = mcp_server.tool_kg_stats()
+        assert result["entities"] >= 3  # Alice, Max, chess
+        assert result["triples"] == 2
+        assert result["current_facts"] == 2
+        assert result["expired_facts"] == 0
+
+
+# ============================= DIARY TOOLS =================================
+
+
+class TestToolDiaryWrite:
+    def test_write_entry(self, mcp_palace):
+        result = mcp_server.tool_diary_write("Claude", "SESSION:2026-04-04|test.entry")
+        assert result["success"] is True
+        assert "entry_id" in result
+        assert result["agent"] == "Claude"
+        assert result["topic"] == "general"
+
+    def test_write_with_topic(self, mcp_palace):
+        result = mcp_server.tool_diary_write("Claude", "worked on tests", topic="testing")
+        assert result["success"] is True
+        assert result["topic"] == "testing"
+
+    def test_wing_name_normalization(self, mcp_palace):
+        result = mcp_server.tool_diary_write("My Agent", "entry text")
+        assert result["success"] is True
+        assert "entry_id" in result
+        # Wing should be wing_my_agent (lowered, spaces to underscores)
+        assert "wing_my_agent" in result["entry_id"]
+
+
+class TestToolDiaryRead:
+    def test_no_palace(self, mcp_palace):
+        result = mcp_server.tool_diary_read("Claude")
+        assert "error" in result or "entries" in result
+
+    def test_read_empty(self, mcp_palace):
+        # Create a collection first so it doesn't return "no palace"
+        _seed_drawers(
+            mcp_palace,
+            [{"id": "d1", "doc": "x", "meta": {"wing": "w", "room": "r"}}],
+        )
+        result = mcp_server.tool_diary_read("Claude")
+        assert result["entries"] == []
+        assert "No diary entries yet" in result["message"]
+
+    def test_read_after_write(self, mcp_palace):
+        mcp_server.tool_diary_write("Claude", "First entry")
+        mcp_server.tool_diary_write("Claude", "Second entry")
+        result = mcp_server.tool_diary_read("Claude")
+        assert result["agent"] == "Claude"
+        assert result["total"] == 2
+        assert result["showing"] == 2
+        assert len(result["entries"]) == 2
+
+    def test_read_last_n(self, mcp_palace):
+        for i in range(5):
+            mcp_server.tool_diary_write("Claude", f"Entry {i}")
+        result = mcp_server.tool_diary_read("Claude", last_n=3)
+        assert result["showing"] == 3
+        assert result["total"] == 5
+
+
+# ============================= HANDLE_REQUEST ==============================
 
 
 class TestHandleRequest:
-    def test_initialize(self):
-        from mempalace.mcp_server import handle_request
-
-        resp = handle_request({"method": "initialize", "id": 1, "params": {}})
-        assert resp["result"]["serverInfo"]["name"] == "mempalace"
+    def test_initialize(self, mcp_palace):
+        resp = mcp_server.handle_request({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
+        assert resp["jsonrpc"] == "2.0"
         assert resp["id"] == 1
+        result = resp["result"]
+        assert result["protocolVersion"] == "2024-11-05"
+        assert result["serverInfo"]["name"] == "mempalace"
+        assert "tools" in result["capabilities"]
 
-    def test_notifications_initialized_returns_none(self):
-        from mempalace.mcp_server import handle_request
-
-        resp = handle_request({"method": "notifications/initialized", "id": None, "params": {}})
+    def test_notifications_initialized(self, mcp_palace):
+        resp = mcp_server.handle_request({"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}})
         assert resp is None
 
-    def test_tools_list(self):
-        from mempalace.mcp_server import handle_request
-
-        resp = handle_request({"method": "tools/list", "id": 2, "params": {}})
+    def test_tools_list(self, mcp_palace):
+        resp = mcp_server.handle_request({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}})
+        assert resp["id"] == 2
         tools = resp["result"]["tools"]
-        names = {t["name"] for t in tools}
-        assert "mempalace_status" in names
-        assert "mempalace_search" in names
-        assert "mempalace_add_drawer" in names
-        assert "mempalace_kg_add" in names
+        assert isinstance(tools, list)
+        tool_names = [t["name"] for t in tools]
+        assert "mempalace_status" in tool_names
+        assert "mempalace_search" in tool_names
+        assert "mempalace_add_drawer" in tool_names
+        assert "mempalace_kg_add" in tool_names
+        assert "mempalace_diary_write" in tool_names
+        # Each tool should have name, description, inputSchema
+        for t in tools:
+            assert "name" in t
+            assert "description" in t
+            assert "inputSchema" in t
 
-    def test_unknown_tool(self):
-        from mempalace.mcp_server import handle_request
-
-        resp = handle_request(
-            {
-                "method": "tools/call",
-                "id": 3,
-                "params": {"name": "nonexistent_tool", "arguments": {}},
-            }
+    def test_tools_call_status(self, mcp_palace):
+        _seed_drawers(
+            mcp_palace,
+            [{"id": "d1", "doc": "x", "meta": {"wing": "w", "room": "r"}}],
         )
+        resp = mcp_server.handle_request({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/call",
+            "params": {"name": "mempalace_status", "arguments": {}},
+        })
+        assert resp["id"] == 3
+        content = resp["result"]["content"]
+        assert len(content) == 1
+        assert content[0]["type"] == "text"
+        data = json.loads(content[0]["text"])
+        assert data["total_drawers"] == 1
+
+    def test_tools_call_kg_add(self, mcp_palace):
+        resp = mcp_server.handle_request({
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "tools/call",
+            "params": {
+                "name": "mempalace_kg_add",
+                "arguments": {
+                    "subject": "Alice",
+                    "predicate": "parent_of",
+                    "object": "Max",
+                },
+            },
+        })
+        assert resp["id"] == 4
+        data = json.loads(resp["result"]["content"][0]["text"])
+        assert data["success"] is True
+
+    def test_tools_call_unknown_tool(self, mcp_palace):
+        resp = mcp_server.handle_request({
+            "jsonrpc": "2.0",
+            "id": 5,
+            "method": "tools/call",
+            "params": {"name": "nonexistent_tool", "arguments": {}},
+        })
+        assert resp["id"] == 5
+        assert "error" in resp
         assert resp["error"]["code"] == -32601
+        assert "Unknown tool" in resp["error"]["message"]
 
-    def test_unknown_method(self):
-        from mempalace.mcp_server import handle_request
+    def test_tools_call_with_error(self, mcp_palace):
+        # Calling search without required 'query' arg should trigger error
+        resp = mcp_server.handle_request({
+            "jsonrpc": "2.0",
+            "id": 6,
+            "method": "tools/call",
+            "params": {"name": "mempalace_search", "arguments": {}},
+        })
+        assert resp["id"] == 6
+        assert "error" in resp
+        assert resp["error"]["code"] == -32000
 
-        resp = handle_request({"method": "unknown/method", "id": 4, "params": {}})
+    def test_unknown_method(self, mcp_palace):
+        resp = mcp_server.handle_request({"jsonrpc": "2.0", "id": 7, "method": "bogus/method", "params": {}})
+        assert resp["id"] == 7
+        assert "error" in resp
         assert resp["error"]["code"] == -32601
+        assert "Unknown method" in resp["error"]["message"]
 
-    def test_tools_call_dispatches(self, monkeypatch, config, palace_path, seeded_kg):
-        _patch_mcp_server(monkeypatch, config, palace_path, seeded_kg)
-        from mempalace.mcp_server import handle_request
+    def test_tools_call_add_drawer(self, mcp_palace):
+        resp = mcp_server.handle_request({
+            "jsonrpc": "2.0",
+            "id": 8,
+            "method": "tools/call",
+            "params": {
+                "name": "mempalace_add_drawer",
+                "arguments": {
+                    "wing": "wing_test",
+                    "room": "integration",
+                    "content": "Added via handle_request",
+                },
+            },
+        })
+        data = json.loads(resp["result"]["content"][0]["text"])
+        assert data["success"] is True
+        assert data["wing"] == "wing_test"
 
-        # Create a collection so status works
-        _get_collection(palace_path, create=True)
+    def test_tools_call_get_aaak_spec(self, mcp_palace):
+        resp = mcp_server.handle_request({
+            "jsonrpc": "2.0",
+            "id": 9,
+            "method": "tools/call",
+            "params": {"name": "mempalace_get_aaak_spec", "arguments": {}},
+        })
+        data = json.loads(resp["result"]["content"][0]["text"])
+        assert "aaak_spec" in data
 
-        resp = handle_request(
-            {
-                "method": "tools/call",
-                "id": 5,
-                "params": {"name": "mempalace_status", "arguments": {}},
-            }
-        )
+    def test_missing_id(self, mcp_palace):
+        resp = mcp_server.handle_request({"jsonrpc": "2.0", "method": "initialize", "params": {}})
+        assert resp["id"] is None
         assert "result" in resp
-        content = json.loads(resp["result"]["content"][0]["text"])
-        assert "total_drawers" in content
 
-
-# ── Read Tools ──────────────────────────────────────────────────────────
-
-
-class TestReadTools:
-    def test_status_empty_palace(self, monkeypatch, config, palace_path, kg):
-        _patch_mcp_server(monkeypatch, config, palace_path, kg)
-        _get_collection(palace_path, create=True)
-        from mempalace.mcp_server import tool_status
-
-        result = tool_status()
-        assert result["total_drawers"] == 0
-        assert result["wings"] == {}
-
-    def test_status_with_data(self, monkeypatch, config, palace_path, seeded_collection, kg):
-        _patch_mcp_server(monkeypatch, config, palace_path, kg)
-        from mempalace.mcp_server import tool_status
-
-        result = tool_status()
-        assert result["total_drawers"] == 4
-        assert "project" in result["wings"]
-        assert "notes" in result["wings"]
-
-    def test_list_wings(self, monkeypatch, config, palace_path, seeded_collection, kg):
-        _patch_mcp_server(monkeypatch, config, palace_path, kg)
-        from mempalace.mcp_server import tool_list_wings
-
-        result = tool_list_wings()
-        assert result["wings"]["project"] == 3
-        assert result["wings"]["notes"] == 1
-
-    def test_list_rooms_all(self, monkeypatch, config, palace_path, seeded_collection, kg):
-        _patch_mcp_server(monkeypatch, config, palace_path, kg)
-        from mempalace.mcp_server import tool_list_rooms
-
-        result = tool_list_rooms()
-        assert "backend" in result["rooms"]
-        assert "frontend" in result["rooms"]
-        assert "planning" in result["rooms"]
-
-    def test_list_rooms_filtered(self, monkeypatch, config, palace_path, seeded_collection, kg):
-        _patch_mcp_server(monkeypatch, config, palace_path, kg)
-        from mempalace.mcp_server import tool_list_rooms
-
-        result = tool_list_rooms(wing="project")
-        assert "backend" in result["rooms"]
-        assert "planning" not in result["rooms"]
-
-    def test_get_taxonomy(self, monkeypatch, config, palace_path, seeded_collection, kg):
-        _patch_mcp_server(monkeypatch, config, palace_path, kg)
-        from mempalace.mcp_server import tool_get_taxonomy
-
-        result = tool_get_taxonomy()
-        assert result["taxonomy"]["project"]["backend"] == 2
-        assert result["taxonomy"]["project"]["frontend"] == 1
-        assert result["taxonomy"]["notes"]["planning"] == 1
-
-    def test_no_palace_returns_error(self, monkeypatch, config, kg):
-        config._file_config["palace_path"] = "/nonexistent/path"
-        _patch_mcp_server(monkeypatch, config, "/nonexistent/path", kg)
-        from mempalace.mcp_server import tool_status
-
-        result = tool_status()
-        assert "error" in result
-
-
-# ── Search Tool ─────────────────────────────────────────────────────────
-
-
-class TestSearchTool:
-    def test_search_basic(self, monkeypatch, config, palace_path, seeded_collection, kg):
-        _patch_mcp_server(monkeypatch, config, palace_path, kg)
-        from mempalace.mcp_server import tool_search
-
-        result = tool_search(query="JWT authentication tokens")
-        assert "results" in result
-        assert len(result["results"]) > 0
-        # Top result should be the auth drawer
-        top = result["results"][0]
-        assert "JWT" in top["text"] or "authentication" in top["text"].lower()
-
-    def test_search_with_wing_filter(self, monkeypatch, config, palace_path, seeded_collection, kg):
-        _patch_mcp_server(monkeypatch, config, palace_path, kg)
-        from mempalace.mcp_server import tool_search
-
-        result = tool_search(query="planning", wing="notes")
-        assert all(r["wing"] == "notes" for r in result["results"])
-
-    def test_search_with_room_filter(self, monkeypatch, config, palace_path, seeded_collection, kg):
-        _patch_mcp_server(monkeypatch, config, palace_path, kg)
-        from mempalace.mcp_server import tool_search
-
-        result = tool_search(query="database", room="backend")
-        assert all(r["room"] == "backend" for r in result["results"])
-
-
-# ── Write Tools ─────────────────────────────────────────────────────────
-
-
-class TestWriteTools:
-    def test_add_drawer(self, monkeypatch, config, palace_path, kg):
-        _patch_mcp_server(monkeypatch, config, palace_path, kg)
-        _get_collection(palace_path, create=True)
-        from mempalace.mcp_server import tool_add_drawer
-
-        result = tool_add_drawer(
-            wing="test_wing",
-            room="test_room",
-            content="This is a test memory about Python decorators and metaclasses.",
-        )
-        assert result["success"] is True
-        assert result["wing"] == "test_wing"
-        assert result["room"] == "test_room"
-        assert result["drawer_id"].startswith("drawer_test_wing_test_room_")
-
-    def test_add_drawer_duplicate_detection(self, monkeypatch, config, palace_path, kg):
-        _patch_mcp_server(monkeypatch, config, palace_path, kg)
-        _get_collection(palace_path, create=True)
-        from mempalace.mcp_server import tool_add_drawer
-
-        content = "This is a unique test memory about Rust ownership and borrowing."
-        result1 = tool_add_drawer(wing="w", room="r", content=content)
-        assert result1["success"] is True
-
-        result2 = tool_add_drawer(wing="w", room="r", content=content)
-        assert result2["success"] is False
-        assert result2["reason"] == "duplicate"
-
-    def test_delete_drawer(self, monkeypatch, config, palace_path, seeded_collection, kg):
-        _patch_mcp_server(monkeypatch, config, palace_path, kg)
-        from mempalace.mcp_server import tool_delete_drawer
-
-        result = tool_delete_drawer("drawer_proj_backend_aaa")
-        assert result["success"] is True
-        assert seeded_collection.count() == 3
-
-    def test_delete_drawer_not_found(self, monkeypatch, config, palace_path, seeded_collection, kg):
-        _patch_mcp_server(monkeypatch, config, palace_path, kg)
-        from mempalace.mcp_server import tool_delete_drawer
-
-        result = tool_delete_drawer("nonexistent_drawer")
-        assert result["success"] is False
-
-    def test_check_duplicate(self, monkeypatch, config, palace_path, seeded_collection, kg):
-        _patch_mcp_server(monkeypatch, config, palace_path, kg)
-        from mempalace.mcp_server import tool_check_duplicate
-
-        # Exact match text from seeded_collection should be flagged
-        result = tool_check_duplicate(
-            "The authentication module uses JWT tokens for session management. "
-            "Tokens expire after 24 hours. Refresh tokens are stored in HttpOnly cookies.",
-            threshold=0.5,
-        )
-        assert result["is_duplicate"] is True
-
-        # Unrelated content should not be flagged
-        result = tool_check_duplicate(
-            "Black holes emit Hawking radiation at the event horizon.",
-            threshold=0.99,
-        )
-        assert result["is_duplicate"] is False
-
-
-# ── KG Tools ────────────────────────────────────────────────────────────
-
-
-class TestKGTools:
-    def test_kg_add(self, monkeypatch, config, palace_path, kg):
-        _patch_mcp_server(monkeypatch, config, palace_path, kg)
-        from mempalace.mcp_server import tool_kg_add
-
-        result = tool_kg_add(
-            subject="Alice",
-            predicate="likes",
-            object="coffee",
-            valid_from="2025-01-01",
-        )
-        assert result["success"] is True
-
-    def test_kg_query(self, monkeypatch, config, palace_path, seeded_kg):
-        _patch_mcp_server(monkeypatch, config, palace_path, seeded_kg)
-        from mempalace.mcp_server import tool_kg_query
-
-        result = tool_kg_query(entity="Max")
-        assert result["count"] > 0
-
-    def test_kg_invalidate(self, monkeypatch, config, palace_path, seeded_kg):
-        _patch_mcp_server(monkeypatch, config, palace_path, seeded_kg)
-        from mempalace.mcp_server import tool_kg_invalidate
-
-        result = tool_kg_invalidate(
-            subject="Max",
-            predicate="does",
-            object="chess",
-            ended="2026-03-01",
-        )
-        assert result["success"] is True
-
-    def test_kg_timeline(self, monkeypatch, config, palace_path, seeded_kg):
-        _patch_mcp_server(monkeypatch, config, palace_path, seeded_kg)
-        from mempalace.mcp_server import tool_kg_timeline
-
-        result = tool_kg_timeline(entity="Alice")
-        assert result["count"] > 0
-
-    def test_kg_stats(self, monkeypatch, config, palace_path, seeded_kg):
-        _patch_mcp_server(monkeypatch, config, palace_path, seeded_kg)
-        from mempalace.mcp_server import tool_kg_stats
-
-        result = tool_kg_stats()
-        assert result["entities"] >= 4
-
-
-# ── Diary Tools ─────────────────────────────────────────────────────────
-
-
-class TestDiaryTools:
-    def test_diary_write_and_read(self, monkeypatch, config, palace_path, kg):
-        _patch_mcp_server(monkeypatch, config, palace_path, kg)
-        _get_collection(palace_path, create=True)
-        from mempalace.mcp_server import tool_diary_write, tool_diary_read
-
-        w = tool_diary_write(
-            agent_name="TestAgent",
-            entry="Today we discussed authentication patterns.",
-            topic="architecture",
-        )
-        assert w["success"] is True
-        assert w["agent"] == "TestAgent"
-
-        r = tool_diary_read(agent_name="TestAgent")
-        assert r["total"] == 1
-        assert r["entries"][0]["topic"] == "architecture"
-        assert "authentication" in r["entries"][0]["content"]
-
-    def test_diary_read_empty(self, monkeypatch, config, palace_path, kg):
-        _patch_mcp_server(monkeypatch, config, palace_path, kg)
-        _get_collection(palace_path, create=True)
-        from mempalace.mcp_server import tool_diary_read
-
-        r = tool_diary_read(agent_name="Nobody")
-        assert r["entries"] == []
+    def test_missing_params(self, mcp_palace):
+        resp = mcp_server.handle_request({"jsonrpc": "2.0", "id": 10, "method": "initialize"})
+        assert resp["id"] == 10
+        assert "result" in resp

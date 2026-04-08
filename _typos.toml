@@ -1,0 +1,21 @@
+[files]
+extend-exclude = []
+
+[default.extend-words]
+# Intentional misspellings in spellcheck test data
+meny = "meny"
+tesing = "tesing"
+realy = "realy"
+writte = "writte"
+sme = "sme"
+misspeled = "misspeled"
+helo = "helo"
+diferent = "diferent"
+pleese = "pleese"
+chekc = "chekc"
+befroe = "befroe"
+alredy = "alredy"
+kno = "kno"
+
+# UE5 (Unreal Engine 5) wing name
+ue = "ue"

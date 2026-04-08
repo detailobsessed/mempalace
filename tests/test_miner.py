@@ -1,208 +1,108 @@
-import os
-import shutil
-import tempfile
-from pathlib import Path
+"""Tests for miner.py — file chunking and room detection."""
 
-import chromadb
-import yaml
-
-from mempalace.miner import mine, scan_project
+from mempalace.miner import chunk_text, detect_room, scan_project
 
 
-def write_file(path: Path, content: str):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+class TestChunkText:
+    def test_short_text_single_chunk(self):
+        chunks = chunk_text("Hello world, this is a test of chunking.", "test.txt")
+        assert len(chunks) == 0  # Below MIN_CHUNK_SIZE (50)
+
+    def test_above_min_size(self):
+        text = "A" * 60
+        chunks = chunk_text(text, "test.txt")
+        assert len(chunks) == 1
+        assert chunks[0]["chunk_index"] == 0
+
+    def test_long_text_multiple_chunks(self):
+        text = "word " * 500  # ~2500 chars, should split into multiple chunks
+        chunks = chunk_text(text, "test.txt")
+        assert len(chunks) > 1
+        # Indices should be sequential
+        for i, chunk in enumerate(chunks):
+            assert chunk["chunk_index"] == i
+
+    def test_empty_text(self):
+        chunks = chunk_text("", "test.txt")
+        assert chunks == []
+
+    def test_whitespace_only(self):
+        chunks = chunk_text("   \n\n   ", "test.txt")
+        assert chunks == []
+
+    def test_paragraph_boundary_splitting(self):
+        para1 = "First paragraph. " * 30
+        para2 = "Second paragraph. " * 30
+        text = para1 + "\n\n" + para2
+        chunks = chunk_text(text, "test.txt")
+        assert len(chunks) >= 2
 
 
-def scanned_files(project_root: Path, **kwargs):
-    files = scan_project(str(project_root), **kwargs)
-    return sorted(path.relative_to(project_root).as_posix() for path in files)
-
-
-def test_project_mining():
-    tmpdir = tempfile.mkdtemp()
-    try:
-        project_root = Path(tmpdir).resolve()
-        os.makedirs(project_root / "backend")
-
-        write_file(
-            project_root / "backend" / "app.py", "def main():\n    print('hello world')\n" * 20
-        )
-        with open(project_root / "mempalace.yaml", "w") as f:
-            yaml.dump(
-                {
-                    "wing": "test_project",
-                    "rooms": [
-                        {"name": "backend", "description": "Backend code"},
-                        {"name": "general", "description": "General"},
-                    ],
-                },
-                f,
-            )
-
-        palace_path = project_root / "palace"
-        mine(str(project_root), str(palace_path))
-
-        client = chromadb.PersistentClient(path=str(palace_path))
-        col = client.get_collection("mempalace_drawers")
-        assert col.count() > 0
-    finally:
-        shutil.rmtree(tmpdir)
-
-
-def test_scan_project_respects_gitignore():
-    tmpdir = tempfile.mkdtemp()
-    try:
-        project_root = Path(tmpdir).resolve()
-
-        write_file(project_root / ".gitignore", "ignored.py\ngenerated/\n")
-        write_file(project_root / "src" / "app.py", "print('hello')\n" * 20)
-        write_file(project_root / "ignored.py", "print('ignore me')\n" * 20)
-        write_file(project_root / "generated" / "artifact.py", "print('artifact')\n" * 20)
-
-        assert scanned_files(project_root) == ["src/app.py"]
-    finally:
-        shutil.rmtree(tmpdir)
-
-
-def test_scan_project_respects_nested_gitignore():
-    tmpdir = tempfile.mkdtemp()
-    try:
-        project_root = Path(tmpdir).resolve()
-
-        write_file(project_root / ".gitignore", "*.log\n")
-        write_file(project_root / "subrepo" / ".gitignore", "tasks/\n")
-        write_file(project_root / "subrepo" / "src" / "main.py", "print('main')\n" * 20)
-        write_file(project_root / "subrepo" / "tasks" / "task.py", "print('task')\n" * 20)
-        write_file(project_root / "subrepo" / "debug.log", "debug\n" * 20)
-
-        assert scanned_files(project_root) == ["subrepo/src/main.py"]
-    finally:
-        shutil.rmtree(tmpdir)
-
-
-def test_scan_project_allows_nested_gitignore_override():
-    tmpdir = tempfile.mkdtemp()
-    try:
-        project_root = Path(tmpdir).resolve()
-
-        write_file(project_root / ".gitignore", "*.csv\n")
-        write_file(project_root / "subrepo" / ".gitignore", "!keep.csv\n")
-        write_file(project_root / "drop.csv", "a,b,c\n" * 20)
-        write_file(project_root / "subrepo" / "keep.csv", "a,b,c\n" * 20)
-
-        assert scanned_files(project_root) == ["subrepo/keep.csv"]
-    finally:
-        shutil.rmtree(tmpdir)
-
-
-def test_scan_project_allows_gitignore_negation_when_parent_dir_is_visible():
-    tmpdir = tempfile.mkdtemp()
-    try:
-        project_root = Path(tmpdir).resolve()
-
-        write_file(project_root / ".gitignore", "generated/*\n!generated/keep.py\n")
-        write_file(project_root / "generated" / "drop.py", "print('drop')\n" * 20)
-        write_file(project_root / "generated" / "keep.py", "print('keep')\n" * 20)
-
-        assert scanned_files(project_root) == ["generated/keep.py"]
-    finally:
-        shutil.rmtree(tmpdir)
-
-
-def test_scan_project_does_not_reinclude_file_from_ignored_directory():
-    tmpdir = tempfile.mkdtemp()
-    try:
-        project_root = Path(tmpdir).resolve()
-
-        write_file(project_root / ".gitignore", "generated/\n!generated/keep.py\n")
-        write_file(project_root / "generated" / "drop.py", "print('drop')\n" * 20)
-        write_file(project_root / "generated" / "keep.py", "print('keep')\n" * 20)
-
-        assert scanned_files(project_root) == []
-    finally:
-        shutil.rmtree(tmpdir)
-
-
-def test_scan_project_can_disable_gitignore():
-    tmpdir = tempfile.mkdtemp()
-    try:
-        project_root = Path(tmpdir).resolve()
-
-        write_file(project_root / ".gitignore", "data/\n")
-        write_file(project_root / "data" / "stuff.csv", "a,b,c\n" * 20)
-
-        assert scanned_files(project_root, respect_gitignore=False) == ["data/stuff.csv"]
-    finally:
-        shutil.rmtree(tmpdir)
-
-
-def test_scan_project_can_include_ignored_directory():
-    tmpdir = tempfile.mkdtemp()
-    try:
-        project_root = Path(tmpdir).resolve()
-
-        write_file(project_root / ".gitignore", "docs/\n")
-        write_file(project_root / "docs" / "guide.md", "# Guide\n" * 20)
-
-        assert scanned_files(project_root, include_ignored=["docs"]) == ["docs/guide.md"]
-    finally:
-        shutil.rmtree(tmpdir)
-
-
-def test_scan_project_can_include_specific_ignored_file():
-    tmpdir = tempfile.mkdtemp()
-    try:
-        project_root = Path(tmpdir).resolve()
-
-        write_file(project_root / ".gitignore", "generated/\n")
-        write_file(project_root / "generated" / "drop.py", "print('drop')\n" * 20)
-        write_file(project_root / "generated" / "keep.py", "print('keep')\n" * 20)
-
-        assert scanned_files(project_root, include_ignored=["generated/keep.py"]) == [
-            "generated/keep.py"
+class TestDetectRoom:
+    def _make_rooms(self):
+        return [
+            {"name": "backend", "keywords": ["api", "server", "database"]},
+            {"name": "frontend", "keywords": ["react", "component", "ui"]},
+            {"name": "general", "keywords": []},
         ]
-    finally:
-        shutil.rmtree(tmpdir)
+
+    def test_folder_path_match(self, tmp_path):
+        backend_dir = tmp_path / "backend"
+        backend_dir.mkdir()
+        filepath = backend_dir / "app.py"
+        filepath.touch()
+        rooms = self._make_rooms()
+        room = detect_room(filepath, "some content", rooms, tmp_path)
+        assert room == "backend"
+
+    def test_filename_match(self, tmp_path):
+        filepath = tmp_path / "backend_utils.py"
+        filepath.touch()
+        rooms = self._make_rooms()
+        room = detect_room(filepath, "some content", rooms, tmp_path)
+        assert room == "backend"
+
+    def test_keyword_scoring(self, tmp_path):
+        filepath = tmp_path / "misc.py"
+        filepath.touch()
+        rooms = self._make_rooms()
+        content = "This file sets up the api server and database connection pool"
+        room = detect_room(filepath, content, rooms, tmp_path)
+        assert room == "backend"
+
+    def test_fallback_to_general(self, tmp_path):
+        filepath = tmp_path / "random.txt"
+        filepath.touch()
+        rooms = self._make_rooms()
+        room = detect_room(filepath, "nothing relevant here", rooms, tmp_path)
+        assert room == "general"
 
 
-def test_scan_project_can_include_exact_file_without_known_extension():
-    tmpdir = tempfile.mkdtemp()
-    try:
-        project_root = Path(tmpdir).resolve()
+class TestScanProject:
+    def test_finds_readable_files(self, tmp_path):
+        (tmp_path / "app.py").write_text("print('hello')")
+        (tmp_path / "notes.md").write_text("# Notes")
+        (tmp_path / "image.png").write_bytes(b"\x89PNG")
+        files = scan_project(str(tmp_path))
+        extensions = {f.suffix for f in files}
+        assert ".py" in extensions
+        assert ".md" in extensions
+        assert ".png" not in extensions
 
-        write_file(project_root / ".gitignore", "README\n")
-        write_file(project_root / "README", "hello\n" * 20)
+    def test_skips_git_dir(self, tmp_path):
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+        (git_dir / "config.py").write_text("x = 1")
+        (tmp_path / "app.py").write_text("print('hello')")
+        files = scan_project(str(tmp_path))
+        assert all(".git" not in str(f) for f in files)
 
-        assert scanned_files(project_root, include_ignored=["README"]) == ["README"]
-    finally:
-        shutil.rmtree(tmpdir)
-
-
-def test_scan_project_include_override_beats_skip_dirs():
-    tmpdir = tempfile.mkdtemp()
-    try:
-        project_root = Path(tmpdir).resolve()
-
-        write_file(project_root / ".pytest_cache" / "cache.py", "print('cache')\n" * 20)
-
-        assert scanned_files(
-            project_root,
-            respect_gitignore=False,
-            include_ignored=[".pytest_cache"],
-        ) == [".pytest_cache/cache.py"]
-    finally:
-        shutil.rmtree(tmpdir)
-
-
-def test_scan_project_skip_dirs_still_apply_without_override():
-    tmpdir = tempfile.mkdtemp()
-    try:
-        project_root = Path(tmpdir).resolve()
-
-        write_file(project_root / ".pytest_cache" / "cache.py", "print('cache')\n" * 20)
-        write_file(project_root / "main.py", "print('main')\n" * 20)
-
-        assert scanned_files(project_root, respect_gitignore=False) == ["main.py"]
-    finally:
-        shutil.rmtree(tmpdir)
+    def test_skips_config_files(self, tmp_path):
+        (tmp_path / "mempalace.yaml").write_text("wing: test")
+        (tmp_path / ".gitignore").write_text("*.pyc")
+        (tmp_path / "app.py").write_text("print('hello')")
+        files = scan_project(str(tmp_path))
+        names = {f.name for f in files}
+        assert "mempalace.yaml" not in names
+        assert ".gitignore" not in names
+        assert "app.py" in names

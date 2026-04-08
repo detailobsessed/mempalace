@@ -1,0 +1,20 @@
+# Changes here will be overwritten by Copier.
+_commit: 0.33.4
+_src_path: /Users/ismar/repos/copier-uv-bleeding
+author_email: ''
+author_fullname: ''
+author_username: ''
+copyright_license: MIT
+project_description: Give your AI a memory. No API key required.
+project_name: mempalace
+project_type: app
+project_visibility: public
+publish_to_mcp_registry: false
+publish_to_pypi: false
+repository_host: github.com
+repository_namespace: detailobsessed
+repository_provider: github.com
+use_blacksmith_runners: false
+use_ci: true
+use_custom_pypi_index: false
+use_semantic_release: true
