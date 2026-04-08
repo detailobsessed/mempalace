@@ -26,7 +26,6 @@ Upstream MemPalace is a great idea with a working prototype. This fork makes it 
 | **CI** | None | GitHub Actions (lint, typecheck, test, docs) |
 | **Pre-commit hooks** | None | ruff, ty, typos, pytest, secret detection |
 | **Docs site** | None | mkdocs-material with API reference |
-| **License** | Apache 2.0 | MIT |
 
 Everything else — the palace architecture, AAAK dialect, MCP server, knowledge graph, benchmarks — is upstream's work. [Read the upstream README](https://github.com/milla-jovovich/mempalace#readme) for the full story.
 
