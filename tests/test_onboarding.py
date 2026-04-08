@@ -58,7 +58,7 @@ class TestGenerateAaakBootstrap:
         )
         entity_file = tmp_path / "aaak_entities.md"
         assert entity_file.exists()
-        content = entity_file.read_text()
+        content = entity_file.read_text(encoding="utf-8")
         assert "RIL=Riley" in content
         assert "MEMP=MemPalace" in content
 
@@ -75,7 +75,7 @@ class TestGenerateAaakBootstrap:
         )
         facts_file = tmp_path / "critical_facts.md"
         assert facts_file.exists()
-        content = facts_file.read_text()
+        content = facts_file.read_text(encoding="utf-8")
         assert "Alice" in content
         assert "Bob" in content
         assert "Acme" in content
@@ -92,7 +92,7 @@ class TestGenerateAaakBootstrap:
             mode="personal",
             config_dir=tmp_path,
         )
-        content = (tmp_path / "aaak_entities.md").read_text()
+        content = (tmp_path / "aaak_entities.md").read_text(encoding="utf-8")
         # Both should be present with different codes
         assert "Alice" in content
         assert "Alix" in content

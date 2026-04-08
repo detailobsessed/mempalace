@@ -76,7 +76,7 @@ def palace_with_tunnels(tmp_path):
 class TestLayer0:
     def test_render_with_file(self, tmp_path):
         identity_file = tmp_path / "identity.txt"
-        identity_file.write_text("I am Atlas, a personal AI assistant.")
+        identity_file.write_text("I am Atlas, a personal AI assistant.", encoding="utf-8")
         layer = Layer0(identity_path=str(identity_file))
         assert layer.render() == "I am Atlas, a personal AI assistant."
 
@@ -87,17 +87,17 @@ class TestLayer0:
 
     def test_render_caches(self, tmp_path):
         identity_file = tmp_path / "identity.txt"
-        identity_file.write_text("cached identity")
+        identity_file.write_text("cached identity", encoding="utf-8")
         layer = Layer0(identity_path=str(identity_file))
         first = layer.render()
         # Modify file after first read
-        identity_file.write_text("changed identity")
+        identity_file.write_text("changed identity", encoding="utf-8")
         second = layer.render()
         assert first == second  # cached
 
     def test_token_estimate(self, tmp_path):
         identity_file = tmp_path / "identity.txt"
-        identity_file.write_text("a" * 400)
+        identity_file.write_text("a" * 400, encoding="utf-8")
         layer = Layer0(identity_path=str(identity_file))
         assert layer.token_estimate() == 100
 
@@ -256,7 +256,7 @@ class TestLayer3:
 class TestMemoryStack:
     def test_wake_up(self, palace, tmp_path):
         identity = tmp_path / "identity.txt"
-        identity.write_text("I am Atlas.")
+        identity.write_text("I am Atlas.", encoding="utf-8")
         stack = MemoryStack(palace_path=palace, identity_path=str(identity))
         result = stack.wake_up()
         assert "Atlas" in result
@@ -264,7 +264,7 @@ class TestMemoryStack:
 
     def test_wake_up_with_wing(self, palace, tmp_path):
         identity = tmp_path / "identity.txt"
-        identity.write_text("I am Atlas.")
+        identity.write_text("I am Atlas.", encoding="utf-8")
         stack = MemoryStack(palace_path=palace, identity_path=str(identity))
         result = stack.wake_up(wing="personal")
         assert "Atlas" in result
@@ -272,21 +272,21 @@ class TestMemoryStack:
 
     def test_recall(self, palace, tmp_path):
         identity = tmp_path / "identity.txt"
-        identity.write_text("test")
+        identity.write_text("test", encoding="utf-8")
         stack = MemoryStack(palace_path=palace, identity_path=str(identity))
         result = stack.recall(wing="myproject")
         assert "ON-DEMAND" in result
 
     def test_search(self, palace, tmp_path):
         identity = tmp_path / "identity.txt"
-        identity.write_text("test")
+        identity.write_text("test", encoding="utf-8")
         stack = MemoryStack(palace_path=palace, identity_path=str(identity))
         result = stack.search("database")
         assert "SEARCH RESULTS" in result
 
     def test_status(self, palace, tmp_path):
         identity = tmp_path / "identity.txt"
-        identity.write_text("test")
+        identity.write_text("test", encoding="utf-8")
         stack = MemoryStack(palace_path=palace, identity_path=str(identity))
         status = stack.status()
         assert status["total_drawers"] == 4
@@ -295,7 +295,7 @@ class TestMemoryStack:
 
     def test_status_no_palace(self, tmp_path):
         identity = tmp_path / "identity.txt"
-        identity.write_text("test")
+        identity.write_text("test", encoding="utf-8")
         stack = MemoryStack(
             palace_path=str(tmp_path / "nope"),
             identity_path=str(identity),
