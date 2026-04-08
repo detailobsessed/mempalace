@@ -98,7 +98,7 @@ priority = 1
 [[repos.hooks]]
 id = "pytest-testmon"
 name = "pytest affected tests"
-entry = "uv run pytest -q --testmon --no-cov"
+entry = "env PYTHONWARNDEFAULTENCODING=1 uv run pytest -q --testmon --no-cov"
 language = "system"
 types = ["python"]
 pass_filenames = false
@@ -109,7 +109,7 @@ priority = 1
 [[repos.hooks]]
 id = "pytest-cov"
 name = "pytest with coverage"
-entry = "uv run pytest -q --cov --cov-fail-under=85 --cov-report=term-missing:skip-covered"
+entry = "env PYTHONWARNDEFAULTENCODING=1 uv run pytest -q --cov --cov-fail-under=85 --cov-report=term-missing:skip-covered"
 language = "system"
 types = ["python"]
 pass_filenames = false
