@@ -228,7 +228,7 @@ def setup_claude_md() -> None:
     CLAUDE_MD.parent.mkdir(parents=True, exist_ok=True)
     with CLAUDE_MD.open("a", encoding="utf-8") as f:
         if content:
-            f.write("\n")
+            f.write("\n\n" if not content.endswith("\n") else "\n")
         f.write(MEMPALACE_CLAUDE_MD)
     print("  ✓ MemPalace section added")
     print(f"      {CLAUDE_MD}")
