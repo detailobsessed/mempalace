@@ -31,7 +31,6 @@ CLAUDE_SETTINGS = Path.home() / ".claude" / "settings.json"
 CLAUDE_MD = Path.home() / ".claude" / "CLAUDE.md"
 
 MEMPALACE_CLAUDE_MD = """\
-
 ## MemPalace
 
 You have MemPalace installed as an MCP server. Run `mempalace_status` at the \
@@ -113,11 +112,13 @@ def register_mcp(python_path: str) -> None:
             print("  ✓ Already registered with correct command — skipping.")
             return
         print("  ! Registered with wrong command — replacing...")
-        subprocess.run(
+        rm = subprocess.run(
             [claude, "mcp", "remove", "mempalace", "-s", "user"],
             capture_output=True,
             check=False,
         )
+        if rm.returncode != 0:
+            print(f"  ⚠ Failed to remove old registration: {rm.stderr.strip()}")
 
     subprocess.run(
         [
@@ -225,6 +226,8 @@ def setup_claude_md() -> None:
 
     CLAUDE_MD.parent.mkdir(parents=True, exist_ok=True)
     with CLAUDE_MD.open("a", encoding="utf-8") as f:
+        if content:
+            f.write("\n")
         f.write(MEMPALACE_CLAUDE_MD)
     print("  ✓ MemPalace section added")
     print(f"      {CLAUDE_MD}")

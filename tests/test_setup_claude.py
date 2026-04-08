@@ -4,7 +4,7 @@ import json
 import shutil
 import sys
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -130,7 +130,7 @@ class TestAddHooks:
     def test_fresh_install(self, fake_home):
         setup_claude.add_hooks()
 
-        settings = json.loads(setup_claude.CLAUDE_SETTINGS.read_text())
+        settings = json.loads(setup_claude.CLAUDE_SETTINGS.read_text(encoding="utf-8"))
         assert len(settings["hooks"]["Stop"]) == 1
         assert len(settings["hooks"]["PreCompact"]) == 1
         assert settings["hooks"]["Stop"][0]["hooks"][0]["timeout"] == 30
@@ -144,11 +144,11 @@ class TestAddHooks:
                 "PreCompact": [{"hooks": [{"type": "command", "command": "/old/mempal_precompact_hook.sh", "timeout": 30000}]}],
             }
         }
-        setup_claude.CLAUDE_SETTINGS.write_text(json.dumps(old_settings))
+        setup_claude.CLAUDE_SETTINGS.write_text(json.dumps(old_settings), encoding="utf-8")
 
         setup_claude.add_hooks()
 
-        settings = json.loads(setup_claude.CLAUDE_SETTINGS.read_text())
+        settings = json.loads(setup_claude.CLAUDE_SETTINGS.read_text(encoding="utf-8"))
         # Old hooks replaced, not duplicated
         assert len(settings["hooks"]["Stop"]) == 1
         assert len(settings["hooks"]["PreCompact"]) == 1
@@ -163,11 +163,11 @@ class TestAddHooks:
                 "Stop": [{"hooks": [{"type": "command", "command": "/other/tool.sh"}]}],
             }
         }
-        setup_claude.CLAUDE_SETTINGS.write_text(json.dumps(other_settings))
+        setup_claude.CLAUDE_SETTINGS.write_text(json.dumps(other_settings), encoding="utf-8")
 
         setup_claude.add_hooks()
 
-        settings = json.loads(setup_claude.CLAUDE_SETTINGS.read_text())
+        settings = json.loads(setup_claude.CLAUDE_SETTINGS.read_text(encoding="utf-8"))
         # Other hook preserved + mempalace hook added
         assert len(settings["hooks"]["Stop"]) == 2
         commands = [e["hooks"][0]["command"] for e in settings["hooks"]["Stop"]]
@@ -177,17 +177,17 @@ class TestAddHooks:
         setup_claude.add_hooks()
         setup_claude.add_hooks()
 
-        settings = json.loads(setup_claude.CLAUDE_SETTINGS.read_text())
+        settings = json.loads(setup_claude.CLAUDE_SETTINGS.read_text(encoding="utf-8"))
         assert len(settings["hooks"]["Stop"]) == 1
         assert len(settings["hooks"]["PreCompact"]) == 1
 
     def test_preserves_existing_settings(self, fake_home):
         existing = {"permissions": {"allow": ["Bash(ls:*)"]}, "outputStyle": "Explanatory"}
-        setup_claude.CLAUDE_SETTINGS.write_text(json.dumps(existing))
+        setup_claude.CLAUDE_SETTINGS.write_text(json.dumps(existing), encoding="utf-8")
 
         setup_claude.add_hooks()
 
-        settings = json.loads(setup_claude.CLAUDE_SETTINGS.read_text())
+        settings = json.loads(setup_claude.CLAUDE_SETTINGS.read_text(encoding="utf-8"))
         assert settings["permissions"] == {"allow": ["Bash(ls:*)"]}
         assert settings["outputStyle"] == "Explanatory"
         assert "hooks" in settings
@@ -202,33 +202,33 @@ class TestSetupClaudeMd:
     def test_creates_new_file(self, fake_home):
         setup_claude.setup_claude_md()
 
-        content = setup_claude.CLAUDE_MD.read_text()
+        content = setup_claude.CLAUDE_MD.read_text(encoding="utf-8")
         assert "MemPalace" in content
         assert "mempalace_status" in content
 
     def test_appends_to_existing(self, fake_home):
-        setup_claude.CLAUDE_MD.write_text("# My Config\n\nSome existing content.\n")
+        setup_claude.CLAUDE_MD.write_text("# My Config\n\nSome existing content.\n", encoding="utf-8")
 
         setup_claude.setup_claude_md()
 
-        content = setup_claude.CLAUDE_MD.read_text()
+        content = setup_claude.CLAUDE_MD.read_text(encoding="utf-8")
         assert content.startswith("# My Config")
         assert "MemPalace" in content
 
     def test_skips_if_already_present(self, fake_home):
-        setup_claude.CLAUDE_MD.write_text("## MemPalace\n\nAlready configured.\n")
+        setup_claude.CLAUDE_MD.write_text("## MemPalace\n\nAlready configured.\n", encoding="utf-8")
 
         setup_claude.setup_claude_md()
 
-        content = setup_claude.CLAUDE_MD.read_text()
+        content = setup_claude.CLAUDE_MD.read_text(encoding="utf-8")
         assert content.count("MemPalace") == 1
 
     def test_case_insensitive_detection(self, fake_home):
-        setup_claude.CLAUDE_MD.write_text("Uses MEMPALACE for memory.\n")
+        setup_claude.CLAUDE_MD.write_text("Uses MEMPALACE for memory.\n", encoding="utf-8")
 
         setup_claude.setup_claude_md()
 
-        content = setup_claude.CLAUDE_MD.read_text()
+        content = setup_claude.CLAUDE_MD.read_text(encoding="utf-8")
         # Should not add another section
         assert "mempalace_status" not in content
 
@@ -236,7 +236,7 @@ class TestSetupClaudeMd:
         setup_claude.setup_claude_md()
         setup_claude.setup_claude_md()
 
-        content = setup_claude.CLAUDE_MD.read_text()
+        content = setup_claude.CLAUDE_MD.read_text(encoding="utf-8")
         assert content.count("## MemPalace") == 1
 
 
@@ -272,12 +272,15 @@ class TestRegisterMcp:
         python_path = "/tools/mempalace/bin/python"
         mcp_output = "mempalace: uv run --with mempalace python -m mempalace.mcp_server"
 
+        list_result = MagicMock(stdout=mcp_output, returncode=0)
+        remove_result = MagicMock(stdout="", stderr="", returncode=0)
+        add_result = MagicMock(stdout="", returncode=0)
+
         with (
             patch.object(shutil, "which", return_value="/usr/bin/claude"),
             patch("setup_claude.subprocess") as mock_sub,
         ):
-            mock_sub.run.return_value.stdout = mcp_output
-            mock_sub.run.return_value.returncode = 0
+            mock_sub.run.side_effect = [list_result, remove_result, add_result]
             setup_claude.register_mcp(python_path)
 
         # Called 3 times: list, remove, add
