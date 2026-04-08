@@ -115,6 +115,7 @@ def register_mcp(python_path: str) -> None:
         rm = subprocess.run(
             [claude, "mcp", "remove", "mempalace", "-s", "user"],
             capture_output=True,
+            text=True,
             check=False,
         )
         if rm.returncode != 0:
