@@ -4,7 +4,7 @@
 
 # MemPalace
 
-### The highest-scoring AI memory system ever benchmarked. And it's free.
+### The highest-scoring AI memory system ever benchmarked. And it's free
 
 <br>
 
@@ -22,18 +22,18 @@ Other memory systems try to fix this by letting AI decide what's worth rememberi
 
 <br>
 
-[![][version-shield]][release-link]
-[![][python-shield]][python-link]
-[![][license-shield]][license-link]
-[![][discord-shield]][discord-link]
+[![version][version-shield]][release-link]
+[![python][python-shield]][python-link]
+[![license][license-shield]][license-link]
+[![discord][discord-shield]][discord-link]
 
 <br>
 
-[Quick Start](#quick-start) · [The Palace](#the-palace) · [AAAK Dialect](#aaak-compression) · [Benchmarks](#benchmarks) · [MCP Tools](#mcp-server)
+[Quick Start](#quick-start) · [The Palace](#the-palace) · [AAAK Dialect](#aaak-dialect-experimental) · [Benchmarks](#benchmarks) · [MCP Tools](#mcp-server)
 
 <br>
 
-### Highest LongMemEval score ever published — free or paid.
+### Highest LongMemEval score ever published — free or paid
 
 <table>
 <tr>
@@ -166,7 +166,7 @@ Decisions happen in conversations now. Not in docs. Not in Jira. In conversation
 **Six months of daily AI use = 19.5 million tokens.** That's every decision, every debugging session, every architecture debate. Gone.
 
 | Approach | Tokens loaded | Annual cost |
-|----------|--------------|-------------|
+| -------- | ------------- | ----------- |
 | Paste everything | 19.5M — doesn't fit any context window | Impossible |
 | LLM summaries | ~650K | ~$507/yr |
 | **MemPalace wake-up** | **~170 tokens** | **~$0.70/yr** |
@@ -232,6 +232,7 @@ You say what you're looking for and boom, it already knows which wing to go to. 
 **Drawers** — the original verbatim files. The exact words, never summarized.
 
 **Halls** are memory types — the same in every wing, acting as corridors:
+
 - `hall_facts` — decisions made, choices locked in
 - `hall_events` — sessions, milestones, debugging
 - `hall_discoveries` — breakthroughs, new insights
@@ -264,7 +265,7 @@ Wings and rooms aren't cosmetic. They're a **34% retrieval improvement**. The pa
 ### The Memory Stack
 
 | Layer | What | Size | When |
-|-------|------|------|------|
+| ----- | ---- | ---- | ---- |
 | **L0** | Identity — who is this AI? | ~50 tokens | Always loaded |
 | **L1** | Critical facts — team, projects, preferences | ~120 tokens (AAAK) | Always loaded |
 | **L2** | Room recall — recent sessions, current project | On demand | When topic comes up |
@@ -388,7 +389,7 @@ kg.invalidate("Kai", "works_on", "Orion", ended="2026-03-01")
 Now queries for Kai's current work won't return Orion. Historical queries still will.
 
 | Feature | MemPalace | Zep (Graphiti) |
-|---------|-----------|----------------|
+| ------- | --------- | -------------- |
 | Storage | SQLite (local) | Neo4j (cloud) |
 | Cost | Free | $25/mo+ |
 | Temporal validity | Yes | Yes |
@@ -444,10 +445,10 @@ claude mcp add mempalace -- python -m mempalace.mcp_server
 
 ### 19 Tools
 
-**Palace (read)**
+#### Palace (read)
 
 | Tool | What |
-|------|------|
+| ---- | ---- |
 | `mempalace_status` | Palace overview + AAAK spec + memory protocol |
 | `mempalace_list_wings` | Wings with counts |
 | `mempalace_list_rooms` | Rooms within a wing |
@@ -456,35 +457,35 @@ claude mcp add mempalace -- python -m mempalace.mcp_server
 | `mempalace_check_duplicate` | Check before filing |
 | `mempalace_get_aaak_spec` | AAAK dialect reference |
 
-**Palace (write)**
+#### Palace (write)
 
 | Tool | What |
-|------|------|
+| ---- | ---- |
 | `mempalace_add_drawer` | File verbatim content |
 | `mempalace_delete_drawer` | Remove by ID |
 
-**Knowledge Graph**
+#### Knowledge Graph
 
 | Tool | What |
-|------|------|
+| ---- | ---- |
 | `mempalace_kg_query` | Entity relationships with time filtering |
 | `mempalace_kg_add` | Add facts |
 | `mempalace_kg_invalidate` | Mark facts as ended |
 | `mempalace_kg_timeline` | Chronological entity story |
 | `mempalace_kg_stats` | Graph overview |
 
-**Navigation**
+#### Navigation
 
 | Tool | What |
-|------|------|
+| ---- | ---- |
 | `mempalace_traverse` | Walk the graph from a room across wings |
 | `mempalace_find_tunnels` | Find rooms bridging two wings |
 | `mempalace_graph_stats` | Graph connectivity overview |
 
-**Agent Diary**
+#### Agent Diary
 
 | Tool | What |
-|------|------|
+| ---- | ---- |
 | `mempalace_diary_write` | Write AAAK diary entry |
 | `mempalace_diary_read` | Read recent diary entries |
 
@@ -516,7 +517,7 @@ Two hooks for Claude Code that automatically save memories during work:
 Tested on standard academic benchmarks — reproducible, published datasets.
 
 | Benchmark | Mode | Score | API Calls |
-|-----------|------|-------|-----------|
+| --------- | ---- | ----- | --------- |
 | **LongMemEval R@5** | Raw (ChromaDB only) | **96.6%** | Zero |
 | **LongMemEval R@5** | Hybrid + Haiku rerank | **100%** (500/500) | ~500 |
 | **LoCoMo R@10** | Raw, session level | **60.3%** | Zero |
@@ -528,7 +529,7 @@ The 96.6% raw score is the highest published LongMemEval result requiring no API
 ### vs Published Systems
 
 | System | LongMemEval R@5 | API Required | Cost |
-|--------|----------------|--------------|------|
+| ------ | --------------- | ------------ | ---- |
 | **MemPalace (hybrid)** | **100%** | Optional | Free |
 | Supermemory ASMR | ~99% | Yes | — |
 | **MemPalace (raw)** | **96.6%** | **None** | **Free** |
@@ -608,7 +609,7 @@ Plain text. Becomes Layer 0 — loaded every session.
 ## File Reference
 
 | File | What |
-|------|------|
+| ---- | ---- |
 | `cli.py` | CLI entry point |
 | `config.py` | Configuration loading and defaults |
 | `normalize.py` | Converts 5 chat formats to standard transcript |

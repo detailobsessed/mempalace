@@ -45,7 +45,6 @@ spellcheck = ["autocorrect>=2.0"]
 [dependency-groups]
 maintain = [
     "build>=1.2",
-    "python-semantic-release>=10",
 ]
 ci = [
     "ruff>=0.14",
@@ -268,25 +267,3 @@ releases = "gh release list --limit 10"
 runs = "gh run list --limit 10"
 checks = "gh pr checks --watch"
 watch = "gh run watch"
-
-[tool.semantic_release]
-version_toml = ["pyproject.toml:project.version"]
-branch = "bleeding"
-build_command = """
-uv lock --upgrade-package "$PACKAGE_NAME"
-git add uv.lock
-uv build
-"""
-commit_message = "chore(release): {version}"
-tag_format = "{version}"
-allow_zero_version = true
-major_on_zero = false
-
-[tool.semantic_release.changelog]
-mode = "update"
-changelog_file = "CHANGELOG.md"
-
-[tool.semantic_release.commit_parser_options]
-allowed_tags = ["build", "chore", "ci", "deps", "docs", "feat", "fix", "perf", "refactor", "style", "test"]
-minor_tags = ["feat"]
-patch_tags = ["fix", "perf"]

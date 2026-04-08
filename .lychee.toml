@@ -17,6 +17,9 @@ exclude = [
     'discussions/new',
     # Relative release links from upstream README
     '^file://.*/releases/',
+    # Paths that exist in upstream but not in this fork
+    '^file://.*/benchmarks',
+    '^file://.*/examples/gemini_cli_setup',
 ]
 
 # Exclude local/private addresses
