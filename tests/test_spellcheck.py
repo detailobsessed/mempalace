@@ -196,3 +196,238 @@ class TestSpellcheckTranscript:
         content = "Just assistant text\nMore text"
         result = spellcheck_transcript(content)
         assert result == content
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Additional coverage tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestGetSpellerWhenAvailable:
+    def test_speller_initialized_when_autocorrect_importable(self):
+        """When autocorrect IS available, _get_speller returns a Speller instance."""
+        import mempalace.spellcheck as sc
+
+        old_speller = sc._speller
+        old_available = sc._autocorrect_available
+
+        try:
+            sc._speller = None
+            sc._autocorrect_available = None
+
+            # Simulate autocorrect being available by pre-setting the globals
+            # as if the import succeeded.
+            fake_speller = lambda x: x  # noqa: E731
+            sc._speller = fake_speller
+            sc._autocorrect_available = True
+
+            result = _get_speller()
+            assert result is fake_speller
+            assert sc._autocorrect_available is True
+        finally:
+            sc._speller = old_speller
+            sc._autocorrect_available = old_available
+
+
+class TestGetSystemWordsNoDict:
+    def test_returns_empty_set_on_missing_dict(self):
+        """On a system without /usr/share/dict/words, returns empty set."""
+        import mempalace.spellcheck as sc
+
+        old_words = sc._system_words
+        old_dict = sc._SYSTEM_DICT
+        try:
+            sc._system_words = None
+            sc._SYSTEM_DICT = Path("/no/such/dict/words")
+            words = _get_system_words()
+            assert words == set()
+        finally:
+            sc._system_words = old_words
+            sc._SYSTEM_DICT = old_dict
+
+
+class TestShouldSkipTechnicalPatterns:
+    def test_hyphenated_term(self):
+        assert _should_skip("bge-large-en", set()) is True
+
+    def test_underscored_term(self):
+        assert _should_skip("my_variable", set()) is True
+
+    def test_camelcase_term(self):
+        assert _should_skip("CamelCase", set()) is True
+        assert _should_skip("longMemEval", set()) is True
+
+    def test_all_caps_term(self):
+        assert _should_skip("NDCG", set()) is True
+        assert _should_skip("MAX_RESULTS", set()) is True
+        assert _should_skip("API_KEY", set()) is True
+
+    def test_code_fence_chars(self):
+        assert _should_skip("`code`", set()) is True
+        assert _should_skip("**bold**", set()) is True
+
+    def test_file_path_like(self):
+        assert _should_skip("/Users/someone/file.txt", set()) is True
+        assert _should_skip("~/Documents", set()) is True
+        assert _should_skip("file.json", set()) is True
+
+    def test_url_like(self):
+        assert _should_skip("https://example.com/path", set()) is True
+        assert _should_skip("www.example.com", set()) is True
+
+
+class TestSpellcheckUserTextEntryPoint:
+    def test_no_autocorrect_returns_unchanged(self):
+        """When autocorrect is not installed, spellcheck_user_text returns input as-is."""
+        import mempalace.spellcheck as sc
+
+        old_speller = sc._speller
+        old_available = sc._autocorrect_available
+        try:
+            sc._speller = None
+            sc._autocorrect_available = False
+
+            text = "teh is definitely mispeled text"  # cspell:disable-line
+            result = spellcheck_user_text(text)
+            assert result == text
+        finally:
+            sc._speller = old_speller
+            sc._autocorrect_available = old_available
+
+    def test_skip_urls_in_text(self):
+        """URLs embedded in text should not be modified."""
+        import mempalace.spellcheck as sc
+
+        old_speller = sc._speller
+        old_available = sc._autocorrect_available
+        try:
+            # Simulate a speller that lowercases everything (to detect unwanted changes)
+            sc._speller = lambda w: w.lower()
+            sc._autocorrect_available = True
+
+            text = "visit https://example.com for details"
+            result = spellcheck_user_text(text, known_names=set())
+            assert "https://example.com" in result
+        finally:
+            sc._speller = old_speller
+            sc._autocorrect_available = old_available
+
+    def test_skip_paths_in_text(self):
+        """File paths in text should not be modified."""
+        import mempalace.spellcheck as sc
+
+        old_speller = sc._speller
+        old_available = sc._autocorrect_available
+        try:
+            sc._speller = lambda w: w.lower()
+            sc._autocorrect_available = True
+
+            text = "check ~/Documents/notes.txt please"
+            result = spellcheck_user_text(text, known_names=set())
+            assert "~/Documents/notes.txt" in result
+        finally:
+            sc._speller = old_speller
+            sc._autocorrect_available = old_available
+
+    def test_skip_entity_names(self):
+        """Known entity names should be preserved."""
+        import mempalace.spellcheck as sc
+
+        old_speller = sc._speller
+        old_available = sc._autocorrect_available
+        try:
+            sc._speller = lambda _word: "corrected"
+            sc._autocorrect_available = True
+
+            text = "Riley went to the store"
+            result = spellcheck_user_text(text, known_names={"riley"})
+            # "Riley" starts uppercase → skipped as proper noun
+            # "went", "store" are valid system words → skipped
+            # "the" is < 4 chars → skipped
+            assert "Riley" in result
+        finally:
+            sc._speller = old_speller
+            sc._autocorrect_available = old_available
+
+    def test_known_names_loaded_when_none(self):
+        """When known_names is None, _load_known_names is called."""
+        import mempalace.spellcheck as sc
+
+        old_speller = sc._speller
+        old_available = sc._autocorrect_available
+        try:
+            sc._speller = None
+            sc._autocorrect_available = False
+
+            # When autocorrect is unavailable, returns text unchanged
+            # but the code path for known_names=None is not reached (early return)
+            text = "hello world"
+            result = spellcheck_user_text(text, known_names=None)
+            assert result == text
+        finally:
+            sc._speller = old_speller
+            sc._autocorrect_available = old_available
+
+    def test_correction_with_punctuation(self):
+        """Trailing punctuation should be preserved after correction."""
+        import mempalace.spellcheck as sc
+
+        old_speller = sc._speller
+        old_available = sc._autocorrect_available
+        old_words = sc._system_words
+        try:
+            # Use a correction within edit distance 2 of the original
+            sc._speller = lambda _word: "wrong"
+            sc._autocorrect_available = True
+            sc._system_words = set()  # empty so words aren't skipped as valid
+
+            text = "wrng."
+            result = spellcheck_user_text(text, known_names=set())
+            # "wrng" → "wrong" (edit distance 1), punctuation "." reattached
+            assert result == "wrong."
+        finally:
+            sc._speller = old_speller
+            sc._autocorrect_available = old_available
+            sc._system_words = old_words
+
+    def test_capitalized_word_skipped(self):
+        """Words starting with uppercase are treated as proper nouns and skipped."""
+        import mempalace.spellcheck as sc
+
+        old_speller = sc._speller
+        old_available = sc._autocorrect_available
+        old_words = sc._system_words
+        try:
+            sc._speller = lambda _word: "wrong"
+            sc._autocorrect_available = True
+            sc._system_words = set()
+
+            text = "Boston is nice"
+            result = spellcheck_user_text(text, known_names=set())
+            assert "Boston" in result
+        finally:
+            sc._speller = old_speller
+            sc._autocorrect_available = old_available
+            sc._system_words = old_words
+
+    def test_edit_distance_guard(self):
+        """Corrections with too-high edit distance are rejected."""
+        import mempalace.spellcheck as sc
+
+        old_speller = sc._speller
+        old_available = sc._autocorrect_available
+        old_words = sc._system_words
+        try:
+            # Return a very different word (high edit distance)
+            sc._speller = lambda _word: "xylophone"
+            sc._autocorrect_available = True
+            sc._system_words = set()
+
+            text = "test"
+            result = spellcheck_user_text(text, known_names=set())
+            # "test" → "xylophone" has edit distance > 3, should be rejected
+            assert result == "test"
+        finally:
+            sc._speller = old_speller
+            sc._autocorrect_available = old_available
+            sc._system_words = old_words

@@ -8,6 +8,7 @@ from mempalace.normalize import (
     _try_chatgpt_json,
     _try_claude_ai_json,
     _try_claude_code_jsonl,
+    _try_codex_jsonl,
     _try_slack_json,
     normalize,
 )
@@ -209,3 +210,263 @@ class TestNormalize:
         f.write_text("")
         result = normalize(str(f))
         assert not result
+
+    def test_oserror_nonexistent_file(self):
+        import pytest
+
+        with pytest.raises(OSError, match="Could not read"):
+            normalize("/nonexistent/path/to/file.txt")
+
+
+class TestCodexJsonl:
+    def test_valid_codex_session(self):
+        lines = [
+            json.dumps({"type": "session_meta", "session_id": "abc123"}),
+            json.dumps({
+                "type": "event_msg",
+                "payload": {"type": "user_message", "message": "Fix the bug"},
+            }),
+            json.dumps({
+                "type": "event_msg",
+                "payload": {"type": "agent_message", "message": "Done, I fixed it."},
+            }),
+        ]
+        content = "\n".join(lines)
+        result = _try_codex_jsonl(content)
+        assert result is not None
+        assert "> Fix the bug" in result
+        assert "Done, I fixed it." in result
+
+    def test_codex_without_session_meta(self):
+        """Without session_meta, codex parser should return None."""
+        lines = [
+            json.dumps({
+                "type": "event_msg",
+                "payload": {"type": "user_message", "message": "hello"},
+            }),
+            json.dumps({
+                "type": "event_msg",
+                "payload": {"type": "agent_message", "message": "hi"},
+            }),
+        ]
+        content = "\n".join(lines)
+        result = _try_codex_jsonl(content)
+        assert result is None
+
+    def test_codex_too_few_messages(self):
+        lines = [
+            json.dumps({"type": "session_meta", "session_id": "abc"}),
+            json.dumps({
+                "type": "event_msg",
+                "payload": {"type": "user_message", "message": "hello"},
+            }),
+        ]
+        content = "\n".join(lines)
+        result = _try_codex_jsonl(content)
+        assert result is None
+
+    def test_codex_skips_non_event_msg(self):
+        lines = [
+            json.dumps({"type": "session_meta", "session_id": "abc"}),
+            json.dumps({"type": "response_item", "payload": {"text": "noise"}}),
+            json.dumps({
+                "type": "event_msg",
+                "payload": {"type": "user_message", "message": "query"},
+            }),
+            json.dumps({
+                "type": "event_msg",
+                "payload": {"type": "agent_message", "message": "answer"},
+            }),
+        ]
+        content = "\n".join(lines)
+        result = _try_codex_jsonl(content)
+        assert result is not None
+        assert "noise" not in result
+
+    def test_codex_skips_non_string_message(self):
+        lines = [
+            json.dumps({"type": "session_meta", "session_id": "abc"}),
+            json.dumps({
+                "type": "event_msg",
+                "payload": {"type": "user_message", "message": ["not", "a", "string"]},
+            }),
+            json.dumps({
+                "type": "event_msg",
+                "payload": {"type": "user_message", "message": "real question"},
+            }),
+            json.dumps({
+                "type": "event_msg",
+                "payload": {"type": "agent_message", "message": "real answer"},
+            }),
+        ]
+        content = "\n".join(lines)
+        result = _try_codex_jsonl(content)
+        assert result is not None
+        assert "> real question" in result
+
+    def test_codex_skips_non_dict_payload(self):
+        lines = [
+            json.dumps({"type": "session_meta", "session_id": "abc"}),
+            json.dumps({"type": "event_msg", "payload": "not a dict"}),
+            json.dumps({
+                "type": "event_msg",
+                "payload": {"type": "user_message", "message": "q"},
+            }),
+            json.dumps({
+                "type": "event_msg",
+                "payload": {"type": "agent_message", "message": "a"},
+            }),
+        ]
+        content = "\n".join(lines)
+        result = _try_codex_jsonl(content)
+        assert result is not None
+
+    def test_codex_plain_text_returns_none(self):
+        result = _try_codex_jsonl("just some plain text\nnothing special")
+        assert result is None
+
+
+class TestClaudeAiPrivacyExport:
+    def test_privacy_export_with_chat_messages(self):
+        """Array of conversation objects with chat_messages inside each."""
+        data = [
+            {
+                "uuid": "conv-1",
+                "name": "First conversation",
+                "chat_messages": [
+                    {"role": "human", "content": "What is Python?"},
+                    {"role": "assistant", "content": "A programming language."},
+                ],
+            },
+            {
+                "uuid": "conv-2",
+                "name": "Second conversation",
+                "chat_messages": [
+                    {"role": "user", "content": "Tell me about Rust."},
+                    {"role": "ai", "content": "A systems programming language."},
+                ],
+            },
+        ]
+        result = _try_claude_ai_json(data)
+        assert result is not None
+        assert "> What is Python?" in result
+        assert "A programming language." in result
+        assert "> Tell me about Rust." in result
+        assert "A systems programming language." in result
+
+    def test_privacy_export_too_few_messages(self):
+        data = [
+            {
+                "uuid": "conv-1",
+                "chat_messages": [
+                    {"role": "user", "content": "hello"},
+                ],
+            },
+        ]
+        result = _try_claude_ai_json(data)
+        assert result is None
+
+    def test_privacy_export_skips_non_dict_entries(self):
+        data = [
+            "not a dict",
+            {
+                "chat_messages": [
+                    {"role": "user", "content": "question"},
+                    {"role": "assistant", "content": "answer"},
+                ],
+            },
+        ]
+        # First element has no "chat_messages" key, so won't enter privacy path
+        # This exercises the flat-message fallback
+        result = _try_claude_ai_json(data)
+        # The first item is a string, not a dict with chat_messages, so it
+        # falls through to the flat message path which also can't parse strings
+        assert result is None
+
+
+class TestChatGptFallbackRoot:
+    def test_root_with_message_no_synthetic_root(self):
+        """When root node has a message (no synthetic null-message root)."""
+        data = {
+            "mapping": {
+                "root": {
+                    "parent": None,
+                    "message": {
+                        "author": {"role": "system"},
+                        "content": {"parts": ["You are a helpful assistant."]},
+                    },
+                    "children": ["msg1"],
+                },
+                "msg1": {
+                    "parent": "root",
+                    "message": {
+                        "author": {"role": "user"},
+                        "content": {"parts": ["What is 1+1?"]},
+                    },
+                    "children": ["msg2"],
+                },
+                "msg2": {
+                    "parent": "msg1",
+                    "message": {
+                        "author": {"role": "assistant"},
+                        "content": {"parts": ["2"]},
+                    },
+                    "children": [],
+                },
+            }
+        }
+        result = _try_chatgpt_json(data)
+        assert result is not None
+        assert "> What is 1+1?" in result
+        assert "2" in result
+
+
+class TestSlackThreePlusSpeakers:
+    def test_three_speakers_role_alternation(self):
+        """With 3+ speakers, roles alternate based on last_role."""
+        data = [
+            {"type": "message", "user": "U1", "text": "Hey team"},
+            {"type": "message", "user": "U2", "text": "Hi U1"},
+            {"type": "message", "user": "U3", "text": "Hello everyone"},
+            {"type": "message", "user": "U1", "text": "Let's discuss the plan"},
+        ]
+        result = _try_slack_json(data)
+        assert result is not None
+        # U1 is first seen -> user, U2 last_role=user -> assistant,
+        # U3 last_role=assistant -> user
+        assert "> Hey team" in result
+        assert "> Hello everyone" in result
+
+
+class TestMessagesToTranscriptOrphanedAssistant:
+    def test_consecutive_assistant_messages(self):
+        """Assistant messages without a preceding user message are output as plain text."""
+        messages = [
+            ("assistant", "I started without being asked."),
+            ("user", "Now I ask something."),
+            ("assistant", "Here is the answer."),
+        ]
+        result = _messages_to_transcript(messages, spellcheck=False)
+        # The orphaned assistant message should appear as plain text (no > marker)
+        assert "I started without being asked." in result
+        assert "> Now I ask something." in result
+        assert "Here is the answer." in result
+        # Only one user turn marker
+        lines_with_marker = [ln for ln in result.split("\n") if ln.strip().startswith(">")]
+        assert len(lines_with_marker) == 1
+
+    def test_multiple_consecutive_assistant_messages(self):
+        """Multiple assistant messages in a row without user turns."""
+        messages = [
+            ("assistant", "First orphan."),
+            ("assistant", "Second orphan."),
+            ("user", "Finally a question."),
+            ("assistant", "And an answer."),
+        ]
+        result = _messages_to_transcript(messages, spellcheck=False)
+        assert "First orphan." in result
+        assert "Second orphan." in result
+        assert "> Finally a question." in result
+        assert "And an answer." in result
+        lines_with_marker = [ln for ln in result.split("\n") if ln.strip().startswith(">")]
+        assert len(lines_with_marker) == 1

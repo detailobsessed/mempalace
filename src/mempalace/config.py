@@ -145,3 +145,14 @@ class MempalaceConfig:
         with Path(self._people_map_file).open("w", encoding="utf-8") as f:
             json.dump(people_map, f, indent=2)
         return self._people_map_file
+
+
+def build_where(wing: str | None, room: str | None) -> dict | None:
+    """Build a ChromaDB where filter from optional wing/room."""
+    if wing and room:
+        return {"$and": [{"wing": wing}, {"room": room}]}
+    if wing:
+        return {"wing": wing}
+    if room:
+        return {"room": room}
+    return None

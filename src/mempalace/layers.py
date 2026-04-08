@@ -24,18 +24,7 @@ from pathlib import Path
 import chromadb
 
 from .config import MempalaceConfig
-
-
-def _build_where(wing: str | None, room: str | None) -> dict | None:
-    """Build a ChromaDB where filter from optional wing/room."""
-    if wing and room:
-        return {"$and": [{"wing": wing}, {"room": room}]}
-    if wing:
-        return {"wing": wing}
-    if room:
-        return {"room": room}
-    return None
-
+from .config import build_where as _build_where
 
 # ---------------------------------------------------------------------------
 # Layer 0 — Identity

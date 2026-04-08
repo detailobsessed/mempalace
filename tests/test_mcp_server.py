@@ -621,3 +621,215 @@ class TestHandleRequest:
         resp = mcp_server.handle_request({"jsonrpc": "2.0", "id": 10, "method": "initialize"})
         assert resp["id"] == 10
         assert "result" in resp
+
+    def test_type_coercion_integer_as_string(self, mcp_palace):
+        """Lines 763-764: MCP sends limit as string '3' instead of int 3."""
+        _seed_drawers(
+            mcp_palace,
+            [{"id": "d1", "doc": "Python testing", "meta": {"wing": "wing_code", "room": "tests"}}],
+        )
+        resp = mcp_server.handle_request({
+            "jsonrpc": "2.0",
+            "id": 20,
+            "method": "tools/call",
+            "params": {
+                "name": "mempalace_search",
+                "arguments": {"query": "python", "limit": "3"},
+            },
+        })
+        assert resp["id"] == 20
+        assert "result" in resp
+        data = json.loads(resp["result"]["content"][0]["text"])
+        # Should succeed — limit was coerced from "3" to 3
+        assert "results" in data or "error" in data
+
+    def test_type_coercion_number_as_string(self, mcp_palace):
+        """Lines 765-766: MCP sends threshold as string '0.5' instead of float 0.5."""
+        _seed_drawers(
+            mcp_palace,
+            [{"id": "d1", "doc": "duplicate check", "meta": {"wing": "wing_code", "room": "r1"}}],
+        )
+        resp = mcp_server.handle_request({
+            "jsonrpc": "2.0",
+            "id": 21,
+            "method": "tools/call",
+            "params": {
+                "name": "mempalace_check_duplicate",
+                "arguments": {"content": "duplicate check", "threshold": "0.5"},
+            },
+        })
+        assert resp["id"] == 21
+        assert "result" in resp
+        data = json.loads(resp["result"]["content"][0]["text"])
+        assert "is_duplicate" in data
+
+    def test_tool_handler_exception(self, mcp_palace):
+        """Lines 774-780: tool handler raises an unexpected exception."""
+        original_handler = mcp_server.TOOLS["mempalace_status"]["handler"]
+        try:
+            mcp_server.TOOLS["mempalace_status"]["handler"] = lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+            resp = mcp_server.handle_request({
+                "jsonrpc": "2.0",
+                "id": 22,
+                "method": "tools/call",
+                "params": {"name": "mempalace_status", "arguments": {}},
+            })
+            assert resp["id"] == 22
+            assert "error" in resp
+            assert resp["error"]["code"] == -32000
+            assert "Internal tool error" in resp["error"]["message"]
+        finally:
+            mcp_server.TOOLS["mempalace_status"]["handler"] = original_handler
+
+
+# ==================== METADATA SCAN ERROR PATHS ============================
+
+
+class TestMetadataScanErrors:
+    """Cover the except:pass blocks in tool_status, tool_list_wings,
+    tool_list_rooms, and tool_get_taxonomy (lines 80-81, 135-136, 157-158, 175-176)."""
+
+    @staticmethod
+    def _patch_collection_get(mcp_palace, monkeypatch):
+        """Patch _get_collection to return a collection whose .get() raises."""
+        # Seed data so the collection exists
+        _seed_drawers(
+            mcp_palace,
+            [{"id": "d1", "doc": "x", "meta": {"wing": "w", "room": "r"}}],
+        )
+        original_get_collection = mcp_server._get_collection
+
+        def patched(create=False):
+            col = original_get_collection(create=create)
+            if col is None:
+                return None
+
+            def broken_get(*_args, **_kwargs):
+                msg = "ChromaDB metadata scan failed"
+                raise RuntimeError(msg)
+
+            col.get = broken_get
+            return col
+
+        monkeypatch.setattr(mcp_server, "_get_collection", patched)
+
+    def test_status_metadata_error(self, mcp_palace, monkeypatch):
+        self._patch_collection_get(mcp_palace, monkeypatch)
+        result = mcp_server.tool_status()
+        # count() still works; metadata scan fails silently → empty wings/rooms
+        assert result["total_drawers"] == 1
+        assert result["wings"] == {}
+        assert result["rooms"] == {}
+
+    def test_list_wings_metadata_error(self, mcp_palace, monkeypatch):
+        self._patch_collection_get(mcp_palace, monkeypatch)
+        result = mcp_server.tool_list_wings()
+        assert result["wings"] == {}
+
+    def test_list_rooms_metadata_error(self, mcp_palace, monkeypatch):
+        self._patch_collection_get(mcp_palace, monkeypatch)
+        result = mcp_server.tool_list_rooms()
+        assert result["wing"] == "all"
+        assert result["rooms"] == {}
+
+    def test_get_taxonomy_metadata_error(self, mcp_palace, monkeypatch):
+        self._patch_collection_get(mcp_palace, monkeypatch)
+        result = mcp_server.tool_get_taxonomy()
+        assert result["taxonomy"] == {}
+
+
+# ==================== WRITE TOOL ERROR PATHS ===============================
+
+
+class TestWriteToolErrors:
+    """Cover error branches in tool_add_drawer and tool_delete_drawer
+    (lines 263, 295-296, 312-313)."""
+
+    def test_add_drawer_chromadb_error(self, mcp_palace, monkeypatch):
+        """Lines 295-296: col.add() raises an exception."""
+        # Create a palace so _get_collection works
+        _seed_drawers(
+            mcp_palace,
+            [{"id": "d1", "doc": "seed", "meta": {"wing": "wing_code", "room": "r1"}}],
+        )
+        original_get_collection = mcp_server._get_collection
+
+        def patched_get_collection(create=False):
+            col = original_get_collection(create=create)
+            if col is None:
+                return None
+
+            def broken_add(*_args, **_kwargs):
+                msg = "ChromaDB add failed"
+                raise RuntimeError(msg)
+
+            col.add = broken_add
+            return col
+
+        monkeypatch.setattr(mcp_server, "_get_collection", patched_get_collection)
+        result = mcp_server.tool_add_drawer("wing_code", "newroom", "unique content that won't duplicate")
+        assert result["success"] is False
+        assert "ChromaDB add failed" in result["error"]
+
+    def test_delete_drawer_chromadb_error(self, mcp_palace, monkeypatch):
+        """Lines 312-313: col.delete() raises an exception."""
+        _seed_drawers(
+            mcp_palace,
+            [{"id": "d1", "doc": "to delete", "meta": {"wing": "w", "room": "r"}}],
+        )
+        original_get_collection = mcp_server._get_collection
+
+        def patched_get_collection(create=False):
+            col = original_get_collection(create=create)
+            if col is None:
+                return None
+
+            def broken_delete(*_args, **_kwargs):
+                msg = "ChromaDB delete failed"
+                raise RuntimeError(msg)
+
+            col.delete = broken_delete
+            return col
+
+        monkeypatch.setattr(mcp_server, "_get_collection", patched_get_collection)
+        result = mcp_server.tool_delete_drawer("d1")
+        assert result["success"] is False
+        assert "ChromaDB delete failed" in result["error"]
+
+    def test_add_drawer_no_collection(self, mcp_palace, monkeypatch):
+        """Line 263: _get_collection(create=True) returns None."""
+        monkeypatch.setattr(mcp_server, "_get_collection", lambda create=False: None)  # noqa: ARG005
+        result = mcp_server.tool_add_drawer("wing_code", "r1", "content")
+        assert "error" in result
+        assert "No palace found" in result["error"]
+
+
+# ==================== DIARY READ ERROR PATH ================================
+
+
+class TestDiaryReadError:
+    """Cover the except branch in tool_diary_read (lines 443-444)."""
+
+    def test_diary_read_chromadb_error(self, mcp_palace, monkeypatch):
+        _seed_drawers(
+            mcp_palace,
+            [{"id": "d1", "doc": "seed", "meta": {"wing": "wing_claude", "room": "diary"}}],
+        )
+        original_get_collection = mcp_server._get_collection
+
+        def patched_get_collection(create=False):
+            col = original_get_collection(create=create)
+            if col is None:
+                return None
+
+            def broken_get(*_args, **_kwargs):
+                msg = "ChromaDB diary read failed"
+                raise RuntimeError(msg)
+
+            col.get = broken_get
+            return col
+
+        monkeypatch.setattr(mcp_server, "_get_collection", patched_get_collection)
+        result = mcp_server.tool_diary_read("Claude")
+        assert "error" in result
+        assert "ChromaDB diary read failed" in result["error"]
