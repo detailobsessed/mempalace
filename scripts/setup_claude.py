@@ -3,6 +3,7 @@
 Install MemPalace integration for Claude Code.
 
 Sets up:
+  - mempalace uv tool   (editable install from this repo)
   - Global MCP server  (claude mcp add mempalace -s user)
   - Auto-save hooks    (~/.claude/settings.json: Stop + PreCompact)
 
@@ -10,6 +11,8 @@ Usage:
     python scripts/setup_claude.py
 
 Idempotent — safe to run multiple times.
+Installs from the local clone so your fork's fixes are always in effect.
+To update after pulling upstream: just `git rebase upstream/main` — no reinstall needed.
 """
 
 from __future__ import annotations
@@ -39,42 +42,31 @@ def _uv_tools_dir() -> Path:
     return Path.home() / ".local" / "share" / "uv" / "tools"
 
 
+def _install_from_repo() -> None:
+    """Install mempalace as an editable uv tool from this repo."""
+    uv = shutil.which("uv")
+    if not uv:
+        print("Error: uv not found. Install it from https://docs.astral.sh/uv/", file=sys.stderr)
+        sys.exit(1)
+    print(f"  Installing mempalace (editable) from {REPO_ROOT} ...")
+    subprocess.run([uv, "tool", "install", "--editable", str(REPO_ROOT)], check=True)
+    print("  ✓ Installed")
+
+
 def find_python() -> str:
     """
-    Return the best Python path for running mempalace.mcp_server.
+    Return the Python path for running mempalace.mcp_server.
 
-    Preference order:
-      1. Python inside the mempalace uv tool venv (mempalace already installed)
-      2. Any Python on PATH that can import mempalace
-      3. System python3 / python (with a warning)
+    Installs from the local repo (editable) if not already present so the
+    fork's code is always in effect for both the CLI and the MCP server.
     """
     uv_python = _uv_tools_dir() / "mempalace" / "bin" / "python"
+    if not uv_python.exists():
+        _install_from_repo()
     if uv_python.exists():
         return str(uv_python)
 
-    for candidate in ("python3", "python"):
-        exe = shutil.which(candidate)
-        if not exe:
-            continue
-        result = subprocess.run(
-            [exe, "-c", "import mempalace"],
-            capture_output=True,
-            check=False,
-        )
-        if result.returncode == 0:
-            return exe
-
-    # Last resort — system python3 may not have mempalace, but warn and proceed
-    fallback = shutil.which("python3") or shutil.which("python")
-    if fallback:
-        print(
-            f"  ! Could not find a Python with mempalace installed.\n"
-            f"    Falling back to {fallback}.\n"
-            f"    Run `uv tool install mempalace` first for best results."
-        )
-        return fallback
-
-    print("Error: no Python interpreter found on PATH.", file=sys.stderr)
+    print("Error: uv tool install succeeded but Python not found at expected path.", file=sys.stderr)
     sys.exit(1)
 
 
@@ -186,8 +178,9 @@ def main() -> None:
         )
         sys.exit(1)
 
+    print("Installing mempalace...")
     python_path = find_python()
-    print(f"Using Python: {python_path}\n")
+    print(f"  Using Python: {python_path}\n")
 
     register_mcp(python_path)
     print()
