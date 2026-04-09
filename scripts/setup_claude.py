@@ -224,7 +224,7 @@ def unregister_plugin() -> None:
         print("  ✓ Plugin removed")
     else:
         stderr = result.stderr.strip()
-        if "not found" in stderr.lower() or "no" in stderr.lower():
+        if "not found" in stderr.lower() or "not registered" in stderr.lower():
             print("  ✓ Plugin not registered — nothing to remove.")
         else:
             print(f"  ⚠ Failed to remove plugin: {stderr}")

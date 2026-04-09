@@ -88,8 +88,8 @@ def _log(message: str) -> None:
 
 
 def _output(data: dict) -> None:
-    """Print JSON to stdout with consistent formatting (pretty-printed)."""
-    print(json.dumps(data, indent=2, ensure_ascii=False))
+    """Print compact JSON to stdout (single line — required by Claude Code hooks)."""
+    print(json.dumps(data, ensure_ascii=False))
 
 
 def _maybe_auto_ingest() -> None:
@@ -198,7 +198,7 @@ def hook_precompact(data: dict, harness: str) -> None:
                     timeout=60,
                     check=False,
                 )
-        except OSError:
+        except OSError, subprocess.SubprocessError:
             pass
 
     _output({"decision": "block", "reason": PRECOMPACT_BLOCK_REASON})

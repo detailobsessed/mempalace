@@ -23,6 +23,7 @@ import hashlib
 import json
 import logging
 import operator
+import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -874,6 +875,14 @@ def handle_request(request):  # noqa: PLR0911, C901
 
 
 def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="MemPalace MCP Server")
+    parser.add_argument("--palace", help="Path to the palace directory")
+    args = parser.parse_args()
+    if args.palace:
+        os.environ["MEMPALACE_PALACE_PATH"] = str(Path(args.palace).expanduser().resolve())
+
     logger.info("MemPalace MCP Server starting...")
     while True:
         try:
