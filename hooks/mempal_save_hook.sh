@@ -1,4 +1,8 @@
 #!/bin/bash
+# DEPRECATED: This script is superseded by .claude-plugin/hooks/mempal-stop-hook.sh
+# which delegates to `mempalace hook run --hook stop --harness claude-code`.
+# This file remains for backwards compatibility with manual installations.
+#
 # MEMPALACE SAVE HOOK — Auto-save every N exchanges
 #
 # Claude Code "Stop" hook. After every assistant response:

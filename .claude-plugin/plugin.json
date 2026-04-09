@@ -1,0 +1,26 @@
+{
+  "name": "mempalace",
+  "version": "3.1.0",
+  "description": "Give your AI a memory — mine projects and conversations into a searchable palace. 19 MCP tools, auto-save hooks, and guided setup.",
+  "author": {
+    "name": "detailobsessed"
+  },
+  "license": "MIT",
+  "commands": [],
+  "mcpServers": {
+    "mempalace": {
+      "command": "mempalace-mcp-server",
+      "args": []
+    }
+  },
+  "keywords": [
+    "memory",
+    "ai",
+    "rag",
+    "mcp",
+    "chromadb",
+    "palace",
+    "search"
+  ],
+  "repository": "https://github.com/detailobsessed/mempalace"
+}

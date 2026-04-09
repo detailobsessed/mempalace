@@ -1,4 +1,8 @@
 #!/bin/bash
+# DEPRECATED: This script is superseded by .claude-plugin/hooks/mempal-precompact-hook.sh
+# which delegates to `mempalace hook run --hook precompact --harness claude-code`.
+# This file remains for backwards compatibility with manual installations.
+#
 # MEMPALACE PRE-COMPACT HOOK — Emergency save before compaction
 #
 # Claude Code "PreCompact" hook. Fires RIGHT BEFORE the conversation
