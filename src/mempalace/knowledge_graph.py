@@ -48,6 +48,7 @@ class KnowledgeGraph:
     def __init__(self, db_path: str | None = None):
         self.db_path = db_path or DEFAULT_KG_PATH
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+        self._connection = None
         self._init_db()
 
     def _init_db(self):
@@ -82,12 +83,19 @@ class KnowledgeGraph:
             CREATE INDEX IF NOT EXISTS idx_triples_valid ON triples(valid_from, valid_to);
         """)
         conn.commit()
-        conn.close()
 
     def _conn(self):
-        conn = sqlite3.connect(self.db_path, timeout=10)
-        conn.execute("PRAGMA journal_mode=WAL")
-        return conn
+        if self._connection is None:
+            self._connection = sqlite3.connect(self.db_path, timeout=10, check_same_thread=False)
+            self._connection.execute("PRAGMA journal_mode=WAL")
+            self._connection.row_factory = sqlite3.Row
+        return self._connection
+
+    def close(self):
+        """Close the cached database connection."""
+        if self._connection is not None:
+            self._connection.close()
+            self._connection = None
 
     @staticmethod
     def _entity_id(name: str) -> str:
@@ -105,7 +113,7 @@ class KnowledgeGraph:
             (eid, name, entity_type, props),
         )
         conn.commit()
-        conn.close()
+
         return eid
 
     def add_triple(  # noqa: PLR0913, PLR0917
@@ -143,7 +151,6 @@ class KnowledgeGraph:
         ).fetchone()
 
         if existing:
-            conn.close()
             return existing[0]  # Already exists and still valid
 
         ts = datetime.now(tz=UTC).isoformat()
@@ -166,7 +173,7 @@ class KnowledgeGraph:
             ),
         )
         conn.commit()
-        conn.close()
+
         return triple_id
 
     def invalidate(self, subject: str, predicate: str, obj: str, ended: str | None = None):
@@ -182,7 +189,6 @@ class KnowledgeGraph:
             (ended, sub_id, pred, obj_id),
         )
         conn.commit()
-        conn.close()
 
     # ── Query operations ──────────────────────────────────────────────────
 
@@ -240,7 +246,6 @@ class KnowledgeGraph:
                 for row in conn.execute(query, params).fetchall()
             )
 
-        conn.close()
         return results
 
     def query_relationship(self, predicate: str, as_of: str | None = None):
@@ -259,7 +264,7 @@ class KnowledgeGraph:
             query += " AND (t.valid_from IS NULL OR t.valid_from <= ?) AND (t.valid_to IS NULL OR t.valid_to >= ?)"
             params.extend([as_of, as_of])
 
-        results = [
+        return [
             {
                 "subject": row[10],
                 "predicate": pred,
@@ -270,8 +275,6 @@ class KnowledgeGraph:
             }
             for row in conn.execute(query, params).fetchall()
         ]
-        conn.close()
-        return results
 
     def timeline(self, entity_name: str | None = None):
         """Get all facts in chronological order, optionally filtered by entity."""
@@ -300,7 +303,6 @@ class KnowledgeGraph:
                 LIMIT 100
             """).fetchall()
 
-        conn.close()
         return [
             {
                 "subject": r[10],
@@ -322,7 +324,7 @@ class KnowledgeGraph:
         current = conn.execute("SELECT COUNT(*) FROM triples WHERE valid_to IS NULL").fetchone()[0]
         expired = triples - current
         predicates = [r[0] for r in conn.execute("SELECT DISTINCT predicate FROM triples ORDER BY predicate").fetchall()]
-        conn.close()
+
         return {
             "entities": entities,
             "triples": triples,

@@ -147,6 +147,44 @@ class MempalaceConfig:
         return self._people_map_file
 
 
+MAX_NAME_LENGTH = 256
+
+
+def sanitize_name(value: str, field_name: str = "name") -> str:
+    """Validate and sanitize a wing/room/entity name.
+
+    Raises ValueError if the name is invalid.
+    """
+    if not isinstance(value, str) or not value.strip():
+        msg = f"{field_name} must be a non-empty string"
+        raise ValueError(msg)
+    value = value.strip()
+    if len(value) > MAX_NAME_LENGTH:
+        msg = f"{field_name} exceeds maximum length of {MAX_NAME_LENGTH} characters"
+        raise ValueError(msg)
+    if ".." in value or "/" in value or "\\" in value:
+        msg = f"{field_name} contains invalid path characters"
+        raise ValueError(msg)
+    if "\x00" in value:
+        msg = f"{field_name} contains null bytes"
+        raise ValueError(msg)
+    return value
+
+
+def sanitize_content(value: str, max_length: int = 100_000) -> str:
+    """Validate drawer/diary content length."""
+    if not isinstance(value, str) or not value.strip():
+        msg = "content must be a non-empty string"
+        raise ValueError(msg)
+    if len(value) > max_length:
+        msg = f"content exceeds maximum length of {max_length} characters"
+        raise ValueError(msg)
+    if "\x00" in value:
+        msg = "content contains null bytes"
+        raise ValueError(msg)
+    return value
+
+
 def build_where(wing: str | None, room: str | None) -> dict | None:
     """Build a ChromaDB where filter from optional wing/room."""
     if wing and room:
