@@ -14,9 +14,22 @@
 
 ---
 
+## Table of contents
+
+- [Why this fork?](#why-this-fork)
+- [What we changed](#what-we-changed)
+- [Quick start](#quick-start)
+- [Tips](#tips)
+- [Development](#development)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
 ## Why this fork?
 
-Upstream MemPalace is a great idea with a working prototype. This fork makes it **shippable**: tested, typed, packaged, and CI-enforced.
+Upstream MemPalace is awesome but a bit of a rough diamond at launch. I wanted more robustness and assurance: tested, typed, packaged, and CI-enforced.
+Plus I wanted to use it WITH the improvements I had in mind.
 
 | &nbsp; | Upstream | This fork |
 | --- | --- | --- |
@@ -77,6 +90,32 @@ uv run python scripts/setup_claude.py
 ```
 
 For usage, commands, and architecture — see the [upstream README](https://github.com/milla-jovovich/mempalace#readme).
+
+> **Tip:** Set `"autoMemoryEnabled": false` in `~/.claude/settings.json` to let MemPalace handle all memory instead of Claude's built-in system. See [Tips](#tips) for details.
+
+> **Tip:** You can start using MemPalace immediately — `mempalace init` and `mempalace mine` enrich your palace but aren't required. See [Tips](#tips).
+
+---
+
+## Tips
+
+### Disable Claude's built-in memory
+
+Claude Code has a built-in memory system (`CLAUDE.md` auto-edits). When using MemPalace, this competes for the same job. Adding `"autoMemoryEnabled": false` to `~/.claude/settings.json` disables it, letting MemPalace be the single source of truth for long-term memory:
+
+```json
+{
+  "autoMemoryEnabled": false
+}
+```
+
+The installer script (`scripts/setup_claude.py`) already configures MCP and hooks — this setting is a recommended complement.
+
+### No init or mine required
+
+`mempalace init` and `mempalace mine` pre-populate the palace with project structure and file content, but they aren't prerequisites. The MCP tools — knowledge graph (`mempalace_kg_*`), diary (`mempalace_diary_*`), drawers, search — all work on an empty palace. MemPalace builds up organically as your agent stores facts and writes diary entries during sessions.
+
+Running `init` and `mine` is still valuable when you want to seed the palace with existing project context upfront, but you can start getting value from MemPalace without them.
 
 ---
 
