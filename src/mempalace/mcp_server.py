@@ -59,11 +59,13 @@ def _get_client():
 def _get_collection(create=False):
     """Return the ChromaDB collection, or None on failure."""
     global _collection_cache  # noqa: PLW0603
+    if not create and _collection_cache is not None:
+        return _collection_cache
     try:
         client = _get_client()
         if create:
             _collection_cache = client.get_or_create_collection(_config.collection_name)
-        elif _collection_cache is None:
+        else:
             _collection_cache = client.get_collection(_config.collection_name)
     except Exception:
         return None
@@ -72,14 +74,23 @@ def _get_collection(create=False):
 
 
 _WAL_DIR = Path("~/.mempalace/wal").expanduser()
-_WAL_DIR.mkdir(parents=True, exist_ok=True)
-with contextlib.suppress(OSError):
-    _WAL_DIR.chmod(0o700)
 _WAL_FILE = _WAL_DIR / "write_log.jsonl"
+_WAL_DIR_CREATED = False
+
+
+def _ensure_wal_dir():
+    """Lazily create the WAL directory on first write."""
+    global _WAL_DIR_CREATED  # noqa: PLW0603
+    if not _WAL_DIR_CREATED:
+        _WAL_DIR.mkdir(parents=True, exist_ok=True)
+        with contextlib.suppress(OSError):
+            _WAL_DIR.chmod(0o700)
+        _WAL_DIR_CREATED = True
 
 
 def _wal_log(operation: str, params: dict, result: dict | None = None):
     """Append a write operation to the audit trail."""
+    _ensure_wal_dir()
     entry = {"ts": datetime.now(tz=UTC).isoformat(), "op": operation, "params": params}
     if result:
         entry["result"] = result
@@ -335,7 +346,8 @@ def tool_add_drawer(wing: str, room: str, content: str, source_file: str | None 
     except Exception as e:
         return {"success": False, "error": str(e)}
     else:
-        _wal_log("add_drawer", {"drawer_id": drawer_id, "wing": wing, "room": room})
+        with contextlib.suppress(Exception):
+            _wal_log("add_drawer", {"drawer_id": drawer_id, "wing": wing, "room": room})
         return {"success": True, "drawer_id": drawer_id, "wing": wing, "room": room}
 
 
@@ -353,7 +365,8 @@ def tool_delete_drawer(drawer_id: str):
     except Exception as e:
         return {"success": False, "error": str(e)}
     else:
-        _wal_log("delete_drawer", {"drawer_id": drawer_id})
+        with contextlib.suppress(Exception):
+            _wal_log("delete_drawer", {"drawer_id": drawer_id})
         return {"success": True, "drawer_id": drawer_id}
 
 
@@ -372,14 +385,16 @@ def tool_kg_add(subject: str, predicate: str, object: str, valid_from: str | Non
     predicate = sanitize_name(predicate, "predicate")
     object = sanitize_name(object, "object")  # noqa: A001
     triple_id = _kg.add_triple(subject, predicate, object, valid_from=valid_from, source_closet=source_closet)
-    _wal_log("kg_add", {"subject": subject, "predicate": predicate, "object": object, "valid_from": valid_from})
+    with contextlib.suppress(Exception):
+        _wal_log("kg_add", {"subject": subject, "predicate": predicate, "object": object, "valid_from": valid_from})
     return {"success": True, "triple_id": triple_id, "fact": f"{subject} → {predicate} → {object}"}
 
 
 def tool_kg_invalidate(subject: str, predicate: str, object: str, ended: str | None = None):  # noqa: A002
     """Mark a fact as no longer true (set end date)."""
     _kg.invalidate(subject, predicate, object, ended=ended)
-    _wal_log("kg_invalidate", {"subject": subject, "predicate": predicate, "object": object, "ended": ended})
+    with contextlib.suppress(Exception):
+        _wal_log("kg_invalidate", {"subject": subject, "predicate": predicate, "object": object, "ended": ended})
     return {
         "success": True,
         "fact": f"{subject} → {predicate} → {object}",
