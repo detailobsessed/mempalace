@@ -17,7 +17,7 @@
 ## Table of contents
 
 - [Why this fork?](#why-this-fork)
-- [What we changed](#what-we-changed)
+- [What changed](#what-changed)
 - [Quick start](#quick-start)
 - [Tips](#tips)
 - [Development](#development)
@@ -28,48 +28,30 @@
 
 ## Why this fork?
 
-Upstream MemPalace is awesome but a bit of a rough diamond at launch. I wanted more robustness and assurance: tested, typed, packaged, and CI-enforced.
-Plus I wanted to use it WITH the improvements I had in mind.
+Upstream MemPalace is awesome but a bit of a rough diamond at launch (as of early April 2026). I wanted more robustness and confidence, so I:
 
-| &nbsp; | Upstream | This fork |
-| --- | --- | --- |
-| **Tests** | None | 568 tests, 86% coverage |
-| **Type checking** | None | ty — 0 errors |
-| **Packaging** | No `pyproject.toml` | uv + src layout, installable as editable tool |
-| **CI** | None | GitHub Actions (lint, typecheck, test, docs) |
-| **Pre-commit hooks** | None | ruff, ty, typos, pytest, secret detection |
-| **Docs site** | None | mkdocs-material with API reference |
+- Applied my [copier-uv-bleeding](https://github.com/detailobsessed/copier-uv-bleeding) template — modern Python boilerplate with comprehensive ruff rules, git hooks, formatting, type checking, CI, docs, the works
+- Wrote a comprehensive test suite with coverage enforcement
+- Fixed bugs and hardened the code as I went
 
-Everything else — the palace architecture, AAAK dialect, MCP server, knowledge graph, benchmarks — is upstream's work. [Read the upstream README](https://github.com/milla-jovovich/mempalace#readme) for the full story.
+Everything else — the palace architecture, AAAK dialect, MCP server, knowledge graph — is upstream's work. [Read the upstream README](https://github.com/milla-jovovich/mempalace#readme) for the full story.
 
 ---
 
-## What we changed
+## What changed
 
-### Engineering infrastructure (from zero)
+### Engineering infrastructure
 
-- **`pyproject.toml`** — proper Python packaging with `uv_build`, dependency pinning (`chromadb>=1.5.6`), `py.typed` marker
-- **src layout** — `mempalace/` → `src/mempalace/` for clean install isolation
-- **568 tests** across 18 test files covering all modules: dialect, layers, searcher, miner, convo_miner, MCP server, knowledge graph, entity detection, normalize, spellcheck, CLI, split, config, onboarding, room detection
-- **86% branch coverage** enforced in pre-push hook with `--cov-fail-under=85`
+- **`uv_build` + src layout** — proper packaging, editable installs, clean isolation
+- **Test suite** with coverage enforcement in pre-push hooks
 - **GitHub Actions CI** — lint + typecheck + test on every push, docs build
-- **Pre-commit/pre-push hooks** via prek: ruff check+format, ty type checking, typos, pytest-testmon (incremental), pytest-cov on push
+- **Pre-commit/pre-push hooks** via prek: ruff, ty, typos, pytest-testmon (incremental)
 - **mkdocs-material docs** with API reference auto-generated from docstrings
-- **Issue templates**, PR template, dependabot, security policy, contributing guide, code of conduct
-
-### Bug fixes
-
-- **SQLite WAL mode** — enables concurrent reads on the knowledge graph
-- **Bounded queries** — `LIMIT` caps on all unbounded ChromaDB `.get()` calls (prevents OOM on large palaces)
-- **KG hardening** — entity timeline limits, consistent query caps
-- **Error handling** — sanitized error responses, preserved CLI exit codes, logged tracebacks instead of crashing
-- **Hook security** — sanitized `SESSION_ID` in save hook to prevent path traversal
-- **Type safety** — all ChromaDB nullable returns properly guarded, kwargs dict-building replaced with explicit keyword args
 
 ### New features
 
 - **`scripts/setup_claude.py`** — one-shot Claude Code integration: installs the fork as an editable uv tool, configures MCP server, sets up hooks
-- **Auto-save hooks** (`hooks/`) — `mempal_save_hook.sh` saves every 15 messages, `mempal_precompact_hook.sh` emergency-saves before context compression
+- **Auto-save hooks** (`hooks/`) — saves every 15 messages, emergency-saves before context compression
 - **CLAUDE.md** — project instructions for Claude Code with dev commands, architecture overview, and CLI reference
 
 ---
@@ -86,7 +68,7 @@ cd mempalace
 uv sync
 
 # One-shot Claude Code setup (MCP server + hooks)
-uv run python scripts/setup_claude.py
+uv run scripts/setup_claude.py
 ```
 
 For usage, commands, and architecture — see the [upstream README](https://github.com/milla-jovovich/mempalace#readme).
@@ -142,7 +124,7 @@ uv run ty check
 
 ## Contributing
 
-PRs welcome. All contributions must pass CI: ruff, ty (0 errors), pytest (86%+ coverage).
+PRs welcome. All contributions must pass CI: ruff, ty (0 errors), pytest with coverage threshold.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 
