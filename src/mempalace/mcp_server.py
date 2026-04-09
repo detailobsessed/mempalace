@@ -454,7 +454,8 @@ def tool_diary_write(agent_name: str, entry: str, topic: str = "general"):
             ],
         )
         logger.info(f"Diary entry: {entry_id} → {wing}/diary/{topic}")
-        _wal_log("diary_write", {"entry_id": entry_id, "agent": agent_name, "topic": topic})
+        with contextlib.suppress(Exception):
+            _wal_log("diary_write", {"entry_id": entry_id, "agent": agent_name, "topic": topic})
         return {
             "success": True,
             "entry_id": entry_id,
