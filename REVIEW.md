@@ -12,7 +12,7 @@ This is an experimental fork of [milla-jovovich/mempalace](https://github.com/mi
 
 ## Conventions
 
-- Python >= 3.14 is required. PEP 758 bare-except syntax (`except X, Y:` without parens) is valid and intentional. Do not flag as syntax error.
+- Python >= 3.14 is required. PEP 758 unparenthesized except syntax (`except X, Y:` without parens) is valid and intentional. Do not flag as syntax error.
 - `~/.mempalace/` is the metadata root (hook state, KG, identity, config). `palace_path` is only for ChromaDB data. This split is deliberate.
 - `check_same_thread=False` on SQLite connections is safe — the MCP server is single-threaded stdio.
 - Idempotent drawer IDs using content hashing are by design (dedup), not a bug.
@@ -30,6 +30,6 @@ This is an experimental fork of [milla-jovovich/mempalace](https://github.com/mi
 
 ## Performance
 
-- `_mine_transcript_sync` in `hooks_cli.py` runs with a 60-second timeout. Combined with MEMPAL_DIR mining, precompact worst case is 120 seconds — acceptable since context is about to be lost.
+- Precompact hook runs `subprocess.run` with `timeout=60` for MEMPAL_DIR mining. This is the maximum blocking time before the hook returns.
 - ChromaDB `PersistentClient` is cached at module level in `mcp_server.py`. Do not create new clients per request.
 - Background `subprocess.Popen` in hooks is intentional — the hook process is short-lived, so child processes are reaped on exit.
