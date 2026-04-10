@@ -36,6 +36,8 @@ This fork is a learning playground where we:
 - **prek** — pre-commit/pre-push hooks: ruff, ty, typos, pytest-testmon (incremental)
 - **copier-uv-bleeding template** — opinionated boilerplate for modern Python projects
 - **Python 3.14** — PEP 758 bare-except syntax, timezone-aware timestamps, type annotations
+- **Independent versioning** — python-semantic-release for the CLI/library (from conventional commits), manual bumps for the Claude Code plugin. A prek hook guards against plugin content changes without a version bump.
+- **Version reset** — this fork starts at `v0.0.1`, independent of upstream's version numbering
 
 ### Behavioral changes from upstream
 
