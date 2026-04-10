@@ -565,7 +565,7 @@ def tool_diary_read(agent_name: str, last_n: int = 10):
 
 TOOLS: dict[str, dict[str, Any]] = {
     "mempalace_status": {
-        "description": "Palace overview — total drawers, wing and room counts",
+        "description": "Palace overview — total drawers, wing/room counts, and setup warnings",
         "input_schema": {"type": "object", "properties": {}},
         "handler": tool_status,
     },

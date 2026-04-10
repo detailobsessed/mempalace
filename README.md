@@ -75,7 +75,7 @@ In Claude Code, add the marketplace and install:
 /install-plugin detailobsessed/mempalace
 ```
 
-This registers the plugin marketplace and installs hooks (Stop, PreCompact), skills, and the MCP server.
+This registers the plugin marketplace and installs hooks (SessionStart, Stop, PreCompact), skills, and the MCP server.
 
 ### Updating
 
