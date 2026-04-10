@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 <!-- version list -->
 
+## v3.2.0 (2026-04-10)
+
+### Bug Fixes
+
+- **ci**: Exclude CHANGELOG.md from typos checker
+  ([`46582d4`](https://github.com/detailobsessed/mempalace/commit/46582d4d06a03b358848f32de6f362d840719158))
+
+### Documentation
+
+- Update hook references and tool description for SessionStart
+  ([`73ffb3c`](https://github.com/detailobsessed/mempalace/commit/73ffb3c7fe9bb3c21ee7390e183234726a8f03b1))
+
+### Features
+
+- Add health check warnings to MCP status tool
+  ([`1449c03`](https://github.com/detailobsessed/mempalace/commit/1449c03e7bb9804c7ef8a9d8c6b614a879cfbaad))
+
+- Proactive setup guidance via SessionStart hook
+  ([`37313fe`](https://github.com/detailobsessed/mempalace/commit/37313fe3b015c736c4d1955b21057bf5fe01bb19))
+
+
 ## v3.1.0 (2026-04-10)
 
 ### Bug Fixes
