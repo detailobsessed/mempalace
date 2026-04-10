@@ -224,7 +224,7 @@ def hook_stop(data: dict, harness: str) -> None:
 
 
 def hook_session_start(data: dict, harness: str) -> None:
-    """Session start hook: initialize session tracking state."""
+    """Session start hook: initialize session tracking + surface setup warnings."""
     parsed = _parse_harness_input(data, harness)
     session_id = parsed["session_id"]
 
@@ -232,7 +232,18 @@ def hook_session_start(data: dict, harness: str) -> None:
 
     STATE_DIR.mkdir(parents=True, exist_ok=True)
 
-    _output({})
+    # Lightweight file-based health checks (no chromadb import)
+    hints = []
+    if not (_CONFIG_DIR / "identity.txt").exists():
+        hints.append("No ~/.mempalace/identity.txt found — Layer 0 (identity) is empty. Create it with a short description of yourself.")
+    cwd = Path.cwd()
+    if not (cwd / "mempalace.yaml").exists() and not (cwd / "mempal.yaml").exists():
+        hints.append("No mempalace.yaml in this project — files won't be routed to rooms. Run: mempalace init .")
+
+    if hints:
+        _output({"systemMessage": "MemPalace setup hints:\n- " + "\n- ".join(hints)})
+    else:
+        _output({})
 
 
 def hook_precompact(data: dict, harness: str) -> None:

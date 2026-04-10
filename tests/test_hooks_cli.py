@@ -200,12 +200,60 @@ def test_stop_hook_tracks_save_point(tmp_path):
 
 
 def test_session_start_passes_through(tmp_path):
-    result = _capture_hook_output(
-        hook_session_start,
-        {"session_id": "test"},
-        state_dir=tmp_path,
-    )
+    """No warnings when identity.txt exists and mempalace.yaml in CWD."""
+    (tmp_path / "identity.txt").write_text("I am test", encoding="utf-8")
+    with patch("mempalace.hooks_cli.Path.cwd", return_value=tmp_path):
+        (tmp_path / "mempalace.yaml").write_text("wing: test", encoding="utf-8")
+        result = _capture_hook_output(
+            hook_session_start,
+            {"session_id": "test"},
+            state_dir=tmp_path,
+        )
     assert result == {}
+
+
+def test_session_start_warns_no_identity(tmp_path):
+    """Missing identity.txt → systemMessage mentions it."""
+    # No identity.txt created in tmp_path (which acts as _CONFIG_DIR)
+    with patch("mempalace.hooks_cli.Path.cwd", return_value=tmp_path):
+        (tmp_path / "mempalace.yaml").write_text("wing: test", encoding="utf-8")
+        result = _capture_hook_output(
+            hook_session_start,
+            {"session_id": "test"},
+            state_dir=tmp_path,
+        )
+    assert "systemMessage" in result
+    assert "identity.txt" in result["systemMessage"]
+
+
+def test_session_start_warns_no_project_config(tmp_path):
+    """Missing mempalace.yaml in CWD → systemMessage mentions mempalace init."""
+    (tmp_path / "identity.txt").write_text("I am test", encoding="utf-8")
+    empty_dir = tmp_path / "no_config"
+    empty_dir.mkdir()
+    with patch("mempalace.hooks_cli.Path.cwd", return_value=empty_dir):
+        result = _capture_hook_output(
+            hook_session_start,
+            {"session_id": "test"},
+            state_dir=tmp_path,
+        )
+    assert "systemMessage" in result
+    assert "mempalace init" in result["systemMessage"]
+
+
+def test_session_start_warns_both_missing(tmp_path):
+    """Both missing → systemMessage covers both."""
+    empty_dir = tmp_path / "no_config"
+    empty_dir.mkdir()
+    with patch("mempalace.hooks_cli.Path.cwd", return_value=empty_dir):
+        result = _capture_hook_output(
+            hook_session_start,
+            {"session_id": "test"},
+            state_dir=tmp_path,
+        )
+    assert "systemMessage" in result
+    assert "identity.txt" in result["systemMessage"]
+    assert "mempalace init" in result["systemMessage"]
 
 
 # --- hook_precompact ---
@@ -463,10 +511,17 @@ def test_precompact_with_mempal_dir_oserror(tmp_path):
 def test_run_hook_dispatches_session_start(tmp_path):
     """run_hook reads stdin JSON and dispatches to correct handler."""
     stdin_data = json.dumps({"session_id": "run-test"})
-    with patch("sys.stdin", io.StringIO(stdin_data)), patch("mempalace.hooks_cli.STATE_DIR", tmp_path):
+    with (
+        patch("sys.stdin", io.StringIO(stdin_data)),
+        patch("mempalace.hooks_cli.STATE_DIR", tmp_path),
+        patch("mempalace.hooks_cli._CONFIG_DIR", tmp_path),
+    ):
         with patch("mempalace.hooks_cli._output") as mock_output:
             run_hook("session-start", "claude-code")
-    mock_output.assert_called_once_with({})
+    mock_output.assert_called_once()
+    result = mock_output.call_args[0][0]
+    # Without identity.txt or mempalace.yaml, expect warnings
+    assert "systemMessage" in result
 
 
 def test_run_hook_dispatches_stop(tmp_path):
@@ -503,7 +558,13 @@ def test_run_hook_unknown_hook():
 
 def test_run_hook_invalid_json(tmp_path):
     """Invalid stdin JSON should not crash — falls back to empty dict."""
-    with patch("sys.stdin", io.StringIO("not valid json")), patch("mempalace.hooks_cli.STATE_DIR", tmp_path):
+    with (
+        patch("sys.stdin", io.StringIO("not valid json")),
+        patch("mempalace.hooks_cli.STATE_DIR", tmp_path),
+        patch("mempalace.hooks_cli._CONFIG_DIR", tmp_path),
+    ):
         with patch("mempalace.hooks_cli._output") as mock_output:
             run_hook("session-start", "claude-code")
-    mock_output.assert_called_once_with({})
+    mock_output.assert_called_once()
+    # Should not crash; will emit warnings since tmp_path has no identity.txt
+    assert mock_output.call_args[0][0] is not None

@@ -35,7 +35,7 @@ def _get_speller():
     global _speller, _autocorrect_available  # noqa: PLW0603
     if _autocorrect_available is None:
         try:
-            from autocorrect import Speller  # type: ignore[unresolved-import]
+            from autocorrect import Speller  # type: ignore[unresolved-import]  # ty: ignore[unresolved-import]
 
             _speller = Speller(lang="en")
             _autocorrect_available = True

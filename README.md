@@ -44,6 +44,8 @@ This fork is a learning playground where we:
 - **Synchronous hook mining** — Stop hook runs transcript mining synchronously so Claude Code's `statusMessage` spinner is visible during saves (upstream used fire-and-forget background processes)
 - **Auto-save opt-out** — Stop hook auto-save can be disabled via `~/.mempalace/config.json` (`stop_hook.auto_save: false`)
 - **Hook log viewer** — `mempalace hook logs [-n N] [-f]` command to tail hook execution logs
+- **MCP health checks** — `mempalace_status` returns a `warnings` array with actionable setup guidance (missing palace, identity, project config, empty palace)
+- **SessionStart health check** — SessionStart hook checks for missing `identity.txt` and `mempalace.yaml`, surfacing setup hints at the start of each session
 - **Code quality** — extracted helpers, defensive config loading, hardened input validation
 
 ---
@@ -73,7 +75,7 @@ In Claude Code, add the marketplace and install:
 /install-plugin detailobsessed/mempalace
 ```
 
-This registers the plugin marketplace and installs hooks (Stop, PreCompact), skills, and the MCP server.
+This registers the plugin marketplace and installs hooks (SessionStart, Stop, PreCompact), skills, and the MCP server.
 
 ### Updating
 
@@ -103,6 +105,10 @@ For usage, commands, and architecture — see the [upstream README](https://gith
 ## Development
 
 ```bash
+# Local setup — required to test CLI and MCP server changes
+uv sync                              # install dependencies
+uv tool install --editable . --force # point mempalace + mempalace-mcp-server at local source
+
 # Task runner (preferred)
 poe test          # Run tests (excluding slow)
 poe test-cov      # Tests with coverage report
@@ -118,6 +124,8 @@ uv run pytest tests/ -v
 uv run ruff check .
 uv run ty check
 ```
+
+After editing MCP server code, reload the plugin in Claude Code (`/reload-plugins`) to pick up changes.
 
 ---
 

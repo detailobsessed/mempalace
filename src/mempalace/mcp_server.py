@@ -107,13 +107,57 @@ def _no_palace():
     }
 
 
+def _health_check():
+    """Return a list of actionable warnings about palace setup."""
+    warnings = []
+    col = _get_collection()
+
+    if not col:
+        warnings.append({
+            "level": "critical",
+            "check": "no_palace",
+            "message": "No palace found. Memories cannot be stored or retrieved.",
+            "fix": "mempalace init . && mempalace mine .",
+        })
+        return warnings
+
+    if col.count() == 0:
+        warnings.append({
+            "level": "warning",
+            "check": "empty_palace",
+            "message": "Palace exists but has no drawers. Nothing to search.",
+            "fix": "mempalace mine .",
+        })
+
+    identity_path = _config._config_dir / "identity.txt"
+    if not identity_path.exists():
+        warnings.append({
+            "level": "warning",
+            "check": "no_identity",
+            "message": "No identity.txt found. Layer 0 (identity) is empty on wake-up.",
+            "fix": "Create ~/.mempalace/identity.txt with a short description of yourself",
+        })
+
+    cwd = Path.cwd()
+    if not (cwd / "mempalace.yaml").exists() and not (cwd / "mempal.yaml").exists():
+        warnings.append({
+            "level": "info",
+            "check": "no_project_config",
+            "message": "No mempalace.yaml in current directory. Project files won't be routed to rooms.",
+            "fix": "mempalace init .",
+        })
+
+    return warnings
+
+
 # ==================== READ TOOLS ====================
 
 
 def tool_status():
+    warnings = _health_check()
     col = _get_collection()
     if not col:
-        return _no_palace()
+        return {**_no_palace(), "warnings": warnings}
     count = col.count()
     wings = {}
     rooms = {}
@@ -133,6 +177,7 @@ def tool_status():
         "palace_path": _config.palace_path,
         "protocol": PALACE_PROTOCOL,
         "aaak_dialect": AAAK_SPEC,
+        "warnings": warnings,
     }
 
 
@@ -520,7 +565,7 @@ def tool_diary_read(agent_name: str, last_n: int = 10):
 
 TOOLS: dict[str, dict[str, Any]] = {
     "mempalace_status": {
-        "description": "Palace overview — total drawers, wing and room counts",
+        "description": "Palace overview — total drawers, wing/room counts, and setup warnings",
         "input_schema": {"type": "object", "properties": {}},
         "handler": tool_status,
     },
