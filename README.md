@@ -38,7 +38,7 @@ This fork is a learning playground where we:
 
 ### Improvements to upstream
 
-- **Hook enhancements** — silent background transcript mining instead of blocking (avoids MCP disconnects), config opt-out for auto-save
+- **Hook enhancements** — silent background transcript mining instead of blocking (avoids MCP disconnects), config opt-out for auto-save, visible status messages during hook execution
 - **Python 3.14** — PEP 758 bare-except syntax, timezone-aware timestamps, type annotations
 - **Code quality** — extracted helpers, defensive config loading, hardened input validation
 
