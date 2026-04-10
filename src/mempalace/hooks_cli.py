@@ -108,6 +108,8 @@ def _is_auto_save_enabled() -> bool:
     try:
         with config_file.open(encoding="utf-8") as f:
             config = json.load(f)
+        if not isinstance(config, dict):
+            return True
         return config.get("stop_hook", {}).get("auto_save", True)
     except json.JSONDecodeError, OSError:
         return True
