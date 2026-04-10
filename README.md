@@ -4,7 +4,7 @@
 
 # MemPalace — `detailobsessed` fork
 
-### Production-hardened fork of [milla-jovovich/mempalace](https://github.com/milla-jovovich/mempalace)
+### Experimental fork of [milla-jovovich/mempalace](https://github.com/milla-jovovich/mempalace)
 
 [![Python][python-shield]][python-link]
 [![License][license-shield]][license-link]
@@ -14,45 +14,33 @@
 
 ---
 
-## Table of contents
+## What is this?
 
-- [Why this fork?](#why-this-fork)
-- [What changed](#what-changed)
-- [Quick start](#quick-start)
-- [Tips](#tips)
-- [Development](#development)
-- [Contributing](#contributing)
-- [License](#license)
+This is an **experimental fork** of [milla-jovovich/mempalace](https://github.com/milla-jovovich/mempalace) — a local-first memory system for AI agents. All credit for the core architecture (palace metaphor, AAAK dialect, MCP server, knowledge graph) goes to the upstream project.
 
----
+This fork is a learning playground where we:
 
-## Why this fork?
+- Experiment with modern Python tooling (uv, ruff, ty, prek)
+- Try ideas like auto-save hooks, Claude Code plugin packaging, and Python 3.14 features
+- Occasionally contribute improvements back upstream
 
-Upstream MemPalace is awesome but a bit of a rough diamond at launch (as of early April 2026). I wanted more robustness and confidence, so I:
-
-- Applied my [copier-uv-bleeding](https://github.com/detailobsessed/copier-uv-bleeding) template — modern Python boilerplate with comprehensive ruff rules, git hooks, formatting, type checking, CI, docs, the works
-- Wrote a comprehensive test suite with coverage enforcement
-- Fixed bugs and hardened the code as I went
-
-Everything else — the palace architecture, AAAK dialect, MCP server, knowledge graph — is upstream's work. [Read the upstream README](https://github.com/milla-jovovich/mempalace#readme) for the full story.
+**If you want MemPalace for real use, start with [upstream](https://github.com/milla-jovovich/mempalace).** This fork may diverge, break, or take experimental directions that don't suit general use.
 
 ---
 
-## What changed
+## What's different here
 
-### Engineering infrastructure
+### Tooling experiments
 
-- **`uv_build` + src layout** — proper packaging, editable installs, clean isolation
-- **Test suite** with coverage enforcement in pre-push hooks
-- **GitHub Actions CI** — lint + typecheck + test on every push, docs build
-- **Pre-commit/pre-push hooks** via prek: ruff, ty, typos, pytest-testmon (incremental)
-- **mkdocs-material docs** with API reference auto-generated from docstrings
+- **`uv_build` + src layout** — proper packaging with editable installs
+- **prek** — pre-commit/pre-push hooks: ruff, ty, typos, pytest-testmon (incremental)
+- **copier-uv-bleeding template** — opinionated boilerplate for modern Python projects
 
-### New features
+### Improvements to upstream
 
-- **`scripts/setup_claude.py`** — one-shot Claude Code integration: installs the fork as an editable uv tool, configures MCP server, sets up hooks
-- **Auto-save hooks** (`hooks/`) — saves every 15 messages, emergency-saves before context compression
-- **CLAUDE.md** — project instructions for Claude Code with dev commands, architecture overview, and CLI reference
+- **Hook enhancements** — silent background transcript mining instead of blocking (avoids MCP disconnects), config opt-out for auto-save
+- **Python 3.14** — PEP 758 bare-except syntax, timezone-aware timestamps, type annotations
+- **Code quality** — extracted helpers, defensive config loading, hardened input validation
 
 ---
 
@@ -66,38 +54,9 @@ uv tool install --editable --from git+https://github.com/detailobsessed/mempalac
 git clone https://github.com/detailobsessed/mempalace
 cd mempalace
 uv sync
-
-# One-shot Claude Code setup (MCP server + hooks)
-uv run scripts/setup_claude.py
 ```
 
 For usage, commands, and architecture — see the [upstream README](https://github.com/milla-jovovich/mempalace#readme).
-
-> **Tip:** Set `"autoMemoryEnabled": false` in `~/.claude/settings.json` to let MemPalace handle all memory instead of Claude's built-in system. See [Tips](#tips) for details.
-
-> **Tip:** You can start using MemPalace immediately — `mempalace init` and `mempalace mine` enrich your palace but aren't required. See [Tips](#tips).
-
----
-
-## Tips
-
-### Disable Claude's built-in memory
-
-Claude Code has a built-in memory system (`CLAUDE.md` auto-edits). When using MemPalace, this competes for the same job. Adding `"autoMemoryEnabled": false` to `~/.claude/settings.json` disables it, letting MemPalace be the single source of truth for long-term memory:
-
-```json
-{
-  "autoMemoryEnabled": false
-}
-```
-
-The installer script (`scripts/setup_claude.py`) already configures MCP and hooks — this setting is a recommended complement.
-
-### No init or mine required
-
-`mempalace init` and `mempalace mine` pre-populate the palace with project structure and file content, but they aren't prerequisites. The MCP tools — knowledge graph (`mempalace_kg_*`), diary (`mempalace_diary_*`), drawers, search — all work on an empty palace. MemPalace builds up organically as your agent stores facts and writes diary entries during sessions.
-
-Running `init` and `mine` is still valuable when you want to seed the palace with existing project context upfront, but you can start getting value from MemPalace without them.
 
 ---
 
