@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from mempalace.spellcheck import (
     _edit_distance,
     _get_speller,
@@ -14,55 +16,66 @@ from mempalace.spellcheck import (
 )
 
 
-class TestShouldSkip:
-    def test_short_tokens(self):
-        assert _should_skip("hi", set()) is True
-        assert _should_skip("ok", set()) is True
+@pytest.mark.parametrize(
+    ("token", "names", "expected"),
+    [
+        # short tokens
+        ("hi", set(), True),
+        ("ok", set(), True),
+        # digits
+        ("v2.0", set(), True),
+        ("3am", set(), True),
+        # camelCase / PascalCase
+        ("ChromaDB", set(), True),
+        ("MemPalace", set(), True),
+        ("CamelCase", set(), True),
+        ("longMemEval", set(), True),
+        # ALL_CAPS
+        ("NDCG", set(), True),
+        ("API", set(), True),
+        ("MAX_RESULTS", set(), True),
+        ("API_KEY", set(), True),
+        # hyphenated / underscored
+        ("bge-large", set(), True),
+        ("bge-large-en", set(), True),
+        ("train_test", set(), True),
+        ("my_variable", set(), True),
+        # URLs
+        ("https://example.com", set(), True),
+        ("https://example.com/path", set(), True),
+        ("www.example.com", set(), True),
+        # file paths
+        ("/Users/someone/file.txt", set(), True),
+        ("~/Documents", set(), True),
+        ("file.json", set(), True),
+        # markdown formatting
+        ("`code`", set(), True),
+        ("**bold**", set(), True),
+        # known names
+        ("riley", {"riley", "sam"}, True),
+        # normal words — should NOT skip
+        ("hello", set(), False),
+        ("world", set(), False),
+    ],
+)
+def test_should_skip(token, names, expected):
+    assert _should_skip(token, names) is expected
 
-    def test_tokens_with_digits(self):
-        assert _should_skip("v2.0", set()) is True
-        assert _should_skip("3am", set()) is True
 
-    def test_camel_case(self):
-        assert _should_skip("ChromaDB", set()) is True
-        assert _should_skip("MemPalace", set()) is True
-
-    def test_all_caps(self):
-        assert _should_skip("NDCG", set()) is True
-        assert _should_skip("API", set()) is True
-
-    def test_technical_tokens(self):
-        assert _should_skip("bge-large", set()) is True
-        assert _should_skip("train_test", set()) is True
-
-    def test_url_like(self):
-        assert _should_skip("https://example.com", set()) is True
-
-    def test_known_names(self):
-        assert _should_skip("riley", {"riley", "sam"}) is True
-
-    def test_normal_word_not_skipped(self):
-        assert _should_skip("hello", set()) is False
-        assert _should_skip("world", set()) is False
-
-
-class TestEditDistance:
-    def test_identical(self):
-        assert _edit_distance("hello", "hello") == 0
-
-    def test_one_edit(self):
-        assert _edit_distance("hello", "helo") == 1
-
-    def test_two_edits(self):
-        assert _edit_distance("hello", "hllo") == 1
-
-    def test_empty_strings(self):
-        assert _edit_distance("", "") == 0
-        assert _edit_distance("abc", "") == 3
-        assert _edit_distance("", "abc") == 3
-
-    def test_completely_different(self):
-        assert _edit_distance("abc", "xyz") == 3
+@pytest.mark.parametrize(
+    ("a", "b", "expected"),
+    [
+        ("hello", "hello", 0),
+        ("hello", "helo", 1),
+        ("hello", "hllo", 1),
+        ("", "", 0),
+        ("abc", "", 3),
+        ("", "abc", 3),
+        ("abc", "xyz", 3),
+    ],
+)
+def test_edit_distance(a, b, expected):
+    assert _edit_distance(a, b) == expected
 
 
 class TestGetSpeller:
@@ -244,36 +257,6 @@ class TestGetSystemWordsNoDict:
         finally:
             sc._system_words = old_words
             sc._SYSTEM_DICT = old_dict
-
-
-class TestShouldSkipTechnicalPatterns:
-    def test_hyphenated_term(self):
-        assert _should_skip("bge-large-en", set()) is True
-
-    def test_underscored_term(self):
-        assert _should_skip("my_variable", set()) is True
-
-    def test_camelcase_term(self):
-        assert _should_skip("CamelCase", set()) is True
-        assert _should_skip("longMemEval", set()) is True
-
-    def test_all_caps_term(self):
-        assert _should_skip("NDCG", set()) is True
-        assert _should_skip("MAX_RESULTS", set()) is True
-        assert _should_skip("API_KEY", set()) is True
-
-    def test_code_fence_chars(self):
-        assert _should_skip("`code`", set()) is True
-        assert _should_skip("**bold**", set()) is True
-
-    def test_file_path_like(self):
-        assert _should_skip("/Users/someone/file.txt", set()) is True
-        assert _should_skip("~/Documents", set()) is True
-        assert _should_skip("file.json", set()) is True
-
-    def test_url_like(self):
-        assert _should_skip("https://example.com/path", set()) is True
-        assert _should_skip("www.example.com", set()) is True
 
 
 class TestSpellcheckUserTextEntryPoint:
