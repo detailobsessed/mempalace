@@ -30,30 +30,68 @@ This fork is a learning playground where we:
 
 ## What's different here
 
-### Tooling experiments
+### Tooling & infrastructure
 
 - **`uv_build` + src layout** — proper packaging with editable installs
 - **prek** — pre-commit/pre-push hooks: ruff, ty, typos, pytest-testmon (incremental)
 - **copier-uv-bleeding template** — opinionated boilerplate for modern Python projects
-
-### Improvements to upstream
-
-- **Hook enhancements** — silent background transcript mining instead of blocking (avoids MCP disconnects), config opt-out for auto-save, visible status messages during hook execution
 - **Python 3.14** — PEP 758 bare-except syntax, timezone-aware timestamps, type annotations
+
+### Behavioral changes from upstream
+
+- **Synchronous hook mining** — Stop hook runs transcript mining synchronously so Claude Code's `statusMessage` spinner is visible during saves (upstream used fire-and-forget background processes)
+- **Auto-save opt-out** — Stop hook auto-save can be disabled via `~/.mempalace/config.json` (`stop_hook.auto_save: false`)
+- **Hook log viewer** — `mempalace hook logs [-n N] [-f]` command to tail hook execution logs
 - **Code quality** — extracted helpers, defensive config loading, hardened input validation
 
 ---
 
-## Quick start
+## Installation
+
+MemPalace has two components: a **Python package** (the CLI and MCP server) and a **Claude Code plugin** (hooks, skills, commands).
+
+### 1. Python package
 
 ```bash
 # Install from this fork
-uv tool install --editable --from git+https://github.com/detailobsessed/mempalace mempalace
+uv tool install --from git+https://github.com/detailobsessed/mempalace mempalace
 
-# Or clone and install locally
+# Or clone and install locally for development
 git clone https://github.com/detailobsessed/mempalace
 cd mempalace
-uv sync
+uv sync                                    # install dependencies
+uv tool install --editable .               # install CLI as mempalace on PATH
+```
+
+### 2. Claude Code plugin
+
+In Claude Code, add the marketplace and install:
+
+```
+/install-plugin detailobsessed/mempalace
+```
+
+This registers the plugin marketplace and installs hooks (Stop, PreCompact), skills, and the MCP server.
+
+### Updating
+
+Both components pull from the `bleeding` branch (this fork's trunk). Push your changes there first, then:
+
+```bash
+# Update the Python package
+uv tool upgrade mempalace
+
+# Update the Claude Code plugin (in Claude Code)
+/plugin
+```
+
+The plugin has `autoUpdate: true` so it checks for updates on session start, but `/plugin` forces an immediate check.
+
+### Verify
+
+```bash
+mempalace status          # Palace overview
+mempalace hook logs -n 5  # Recent hook activity
 ```
 
 For usage, commands, and architecture — see the [upstream README](https://github.com/milla-jovovich/mempalace#readme).
