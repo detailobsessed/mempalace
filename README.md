@@ -103,6 +103,10 @@ For usage, commands, and architecture — see the [upstream README](https://gith
 ## Development
 
 ```bash
+# Local setup — required to test CLI and MCP server changes
+uv sync                              # install dependencies
+uv tool install --editable . --force # point mempalace + mempalace-mcp-server at local source
+
 # Task runner (preferred)
 poe test          # Run tests (excluding slow)
 poe test-cov      # Tests with coverage report
@@ -118,6 +122,8 @@ uv run pytest tests/ -v
 uv run ruff check .
 uv run ty check
 ```
+
+After editing MCP server code, reload the plugin in Claude Code (`/reload-plugins`) to pick up changes.
 
 ---
 
