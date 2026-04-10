@@ -18,18 +18,20 @@ Tools (write):
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
 import operator
 import sys
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import chromadb
 
 from . import __version__
-from .config import MempalaceConfig
+from .config import MempalaceConfig, sanitize_content, sanitize_kg_value, sanitize_name
 from .knowledge_graph import KnowledgeGraph
 from .palace_graph import find_tunnels, graph_stats, traverse
 from .searcher import search_memories
@@ -42,15 +44,59 @@ logger = logging.getLogger("mempalace_mcp")
 _config = MempalaceConfig()
 
 
+_client_cache = None
+_collection_cache = None
+
+
+def _get_client():
+    """Return a cached ChromaDB PersistentClient."""
+    global _client_cache  # noqa: PLW0603
+    if _client_cache is None:
+        _client_cache = chromadb.PersistentClient(path=_config.palace_path)
+    return _client_cache
+
+
 def _get_collection(create=False):
     """Return the ChromaDB collection, or None on failure."""
+    global _collection_cache  # noqa: PLW0603
+    if not create and _collection_cache is not None:
+        return _collection_cache
     try:
-        client = chromadb.PersistentClient(path=_config.palace_path)
+        client = _get_client()
         if create:
-            return client.get_or_create_collection(_config.collection_name)
-        return client.get_collection(_config.collection_name)
+            _collection_cache = client.get_or_create_collection(_config.collection_name)
+        else:
+            _collection_cache = client.get_collection(_config.collection_name)
     except Exception:
+        _collection_cache = None
         return None
+    else:
+        return _collection_cache
+
+
+_WAL_DIR = Path("~/.mempalace/wal").expanduser()
+_WAL_FILE = _WAL_DIR / "write_log.jsonl"
+_WAL_DIR_CREATED = False
+
+
+def _ensure_wal_dir():
+    """Lazily create the WAL directory on first write."""
+    global _WAL_DIR_CREATED  # noqa: PLW0603
+    if not _WAL_DIR_CREATED:
+        _WAL_DIR.mkdir(parents=True, exist_ok=True)
+        with contextlib.suppress(OSError):
+            _WAL_DIR.chmod(0o700)
+        _WAL_DIR_CREATED = True
+
+
+def _wal_log(operation: str, params: dict, result: dict | None = None):
+    """Append a write operation to the audit trail."""
+    _ensure_wal_dir()
+    entry = {"ts": datetime.now(tz=UTC).isoformat(), "op": operation, "params": params}
+    if result:
+        entry["result"] = result
+    with _WAL_FILE.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
 
 
 def _no_palace():
@@ -258,6 +304,9 @@ def tool_graph_stats():
 
 def tool_add_drawer(wing: str, room: str, content: str, source_file: str | None = None, added_by: str = "mcp"):
     """File verbatim content into a wing/room. Checks for duplicates first."""
+    wing = sanitize_name(wing, "wing")
+    room = sanitize_name(room, "room")
+    content = sanitize_content(content)
     col = _get_collection(create=True)
     if not col:
         return _no_palace()
@@ -272,12 +321,15 @@ def tool_add_drawer(wing: str, room: str, content: str, source_file: str | None 
         }
 
     now = datetime.now(tz=UTC)
-    hash_input = (content[:100] + now.isoformat()).encode()
-    short_hash = hashlib.md5(hash_input, usedforsecurity=False).hexdigest()[:16]
-    drawer_id = f"drawer_{wing}_{room}_{short_hash}"
+    drawer_id = f"drawer_{wing}_{room}_{hashlib.sha256((wing + room + content).encode()).hexdigest()[:24]}"
+
+    # Idempotency: skip if already exists
+    existing = col.get(ids=[drawer_id])
+    if existing and existing["ids"]:
+        return {"success": True, "reason": "already_exists", "drawer_id": drawer_id}
 
     try:
-        col.add(
+        col.upsert(
             ids=[drawer_id],
             documents=[content],
             metadatas=[
@@ -295,6 +347,8 @@ def tool_add_drawer(wing: str, room: str, content: str, source_file: str | None 
     except Exception as e:
         return {"success": False, "error": str(e)}
     else:
+        with contextlib.suppress(Exception):
+            _wal_log("add_drawer", {"drawer_id": drawer_id, "wing": wing, "room": room})
         return {"success": True, "drawer_id": drawer_id, "wing": wing, "room": room}
 
 
@@ -312,6 +366,8 @@ def tool_delete_drawer(drawer_id: str):
     except Exception as e:
         return {"success": False, "error": str(e)}
     else:
+        with contextlib.suppress(Exception):
+            _wal_log("delete_drawer", {"drawer_id": drawer_id})
         return {"success": True, "drawer_id": drawer_id}
 
 
@@ -326,13 +382,23 @@ def tool_kg_query(entity: str, as_of: str | None = None, direction: str = "both"
 
 def tool_kg_add(subject: str, predicate: str, object: str, valid_from: str | None = None, source_closet: str | None = None):  # noqa: A002
     """Add a relationship to the knowledge graph."""
+    subject = sanitize_kg_value(subject, "subject")
+    predicate = sanitize_kg_value(predicate, "predicate")
+    object = sanitize_kg_value(object, "object")  # noqa: A001
     triple_id = _kg.add_triple(subject, predicate, object, valid_from=valid_from, source_closet=source_closet)
+    with contextlib.suppress(Exception):
+        _wal_log("kg_add", {"subject": subject, "predicate": predicate, "object": object, "valid_from": valid_from})
     return {"success": True, "triple_id": triple_id, "fact": f"{subject} → {predicate} → {object}"}
 
 
 def tool_kg_invalidate(subject: str, predicate: str, object: str, ended: str | None = None):  # noqa: A002
     """Mark a fact as no longer true (set end date)."""
+    subject = sanitize_kg_value(subject, "subject")
+    predicate = sanitize_kg_value(predicate, "predicate")
+    object = sanitize_kg_value(object, "object")  # noqa: A001
     _kg.invalidate(subject, predicate, object, ended=ended)
+    with contextlib.suppress(Exception):
+        _wal_log("kg_invalidate", {"subject": subject, "predicate": predicate, "object": object, "ended": ended})
     return {
         "success": True,
         "fact": f"{subject} → {predicate} → {object}",
@@ -362,6 +428,8 @@ def tool_diary_write(agent_name: str, entry: str, topic: str = "general"):
     This is the agent's personal journal — observations, thoughts,
     what it worked on, what it noticed, what it thinks matters.
     """
+    agent_name = sanitize_name(agent_name, "agent_name")
+    entry = sanitize_content(entry)
     wing = f"wing_{agent_name.lower().replace(' ', '_')}"
     room = "diary"
     col = _get_collection(create=True)
@@ -390,6 +458,8 @@ def tool_diary_write(agent_name: str, entry: str, topic: str = "general"):
             ],
         )
         logger.info(f"Diary entry: {entry_id} → {wing}/diary/{topic}")
+        with contextlib.suppress(Exception):
+            _wal_log("diary_write", {"entry_id": entry_id, "agent": agent_name, "topic": topic})
         return {
             "success": True,
             "entry_id": entry_id,
@@ -406,6 +476,7 @@ def tool_diary_read(agent_name: str, last_n: int = 10):
     Read an agent's recent diary entries. Returns the last N entries
     in chronological order — the agent's personal journal.
     """
+    agent_name = sanitize_name(agent_name, "agent_name")
     wing = f"wing_{agent_name.lower().replace(' ', '_')}"
     col = _get_collection()
     if not col:
@@ -720,17 +791,27 @@ TOOLS: dict[str, dict[str, Any]] = {
 }
 
 
-def handle_request(request):  # noqa: PLR0911
+SUPPORTED_PROTOCOL_VERSIONS = [
+    "2025-11-25",
+    "2025-06-18",
+    "2025-03-26",
+    "2024-11-05",
+]
+
+
+def handle_request(request):  # noqa: PLR0911, C901
     method = request.get("method", "")
     params = request.get("params", {})
     req_id = request.get("id")
 
     if method == "initialize":
+        client_version = params.get("protocolVersion", SUPPORTED_PROTOCOL_VERSIONS[-1])
+        negotiated = client_version if client_version in SUPPORTED_PROTOCOL_VERSIONS else SUPPORTED_PROTOCOL_VERSIONS[0]
         return {
             "jsonrpc": "2.0",
             "id": req_id,
             "result": {
-                "protocolVersion": "2024-11-05",
+                "protocolVersion": negotiated,
                 "capabilities": {"tools": {}},
                 "serverInfo": {"name": "mempalace", "version": __version__},
             },
@@ -770,6 +851,12 @@ def handle_request(request):  # noqa: PLR0911
                 "jsonrpc": "2.0",
                 "id": req_id,
                 "result": {"content": [{"type": "text", "text": json.dumps(result, indent=2)}]},
+            }
+        except ValueError as e:
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": {"content": [{"type": "text", "text": json.dumps({"success": False, "error": str(e)})}]},
             }
         except Exception:
             logger.exception(f"Tool error in {tool_name}")

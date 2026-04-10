@@ -40,6 +40,8 @@ READABLE_EXTENSIONS = {
     ".toml",
 }
 
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB — skip files larger than this
+
 SKIP_DIRS = {
     ".git",
     "node_modules",
@@ -498,6 +500,16 @@ def process_file(  # noqa: PLR0913, PLR0917
 # =============================================================================
 
 
+def _is_safe_file(filepath: Path) -> bool:
+    """Return False for symlinks, oversized files, or unreadable files."""
+    if filepath.is_symlink():
+        return False
+    try:
+        return filepath.stat().st_size <= MAX_FILE_SIZE
+    except OSError:
+        return False
+
+
 def scan_project(
     project_dir: str,
     respect_gitignore: bool = True,
@@ -532,6 +544,8 @@ def scan_project(
 
         for filename in filenames:
             filepath = root_path / filename
+            if not _is_safe_file(filepath):
+                continue
             force_include = is_force_included(filepath, project_path, include_paths)
             exact_force_include = is_exact_force_include(filepath, project_path, include_paths)
 

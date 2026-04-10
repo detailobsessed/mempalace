@@ -22,6 +22,10 @@ def mcp_palace(tmp_path, monkeypatch):
     kg = KnowledgeGraph(db_path=str(tmp_path / "kg.sqlite3"))
     monkeypatch.setattr(mcp_server, "_kg", kg)
 
+    # Reset client/collection caches so each test gets a fresh connection
+    monkeypatch.setattr(mcp_server, "_client_cache", None)
+    monkeypatch.setattr(mcp_server, "_collection_cache", None)
+
     return palace_path
 
 
@@ -759,17 +763,17 @@ class TestWriteToolErrors:
             if col is None:
                 return None
 
-            def broken_add(*_args, **_kwargs):
-                msg = "ChromaDB add failed"
+            def broken_upsert(*_args, **_kwargs):
+                msg = "ChromaDB upsert failed"
                 raise RuntimeError(msg)
 
-            col.add = broken_add
+            col.upsert = broken_upsert
             return col
 
         monkeypatch.setattr(mcp_server, "_get_collection", patched_get_collection)
         result = mcp_server.tool_add_drawer("wing_code", "newroom", "unique content that won't duplicate")
         assert result["success"] is False
-        assert "ChromaDB add failed" in result["error"]
+        assert "ChromaDB upsert failed" in result["error"]
 
     def test_delete_drawer_chromadb_error(self, mcp_palace, monkeypatch):
         """Lines 312-313: col.delete() raises an exception."""
