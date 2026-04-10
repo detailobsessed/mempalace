@@ -1,14 +1,6 @@
 """Tests for knowledge_graph.py — temporal entity-relationship graph."""
 
-import pytest
-
 from mempalace.knowledge_graph import KnowledgeGraph
-
-
-@pytest.fixture
-def kg(tmp_path):
-    db_path = str(tmp_path / "test_kg.sqlite3")
-    return KnowledgeGraph(db_path=db_path)
 
 
 class TestAddEntity:

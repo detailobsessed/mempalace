@@ -2,6 +2,9 @@
 
 from pathlib import Path
 
+import pytest
+
+import mempalace.spellcheck as sc
 from mempalace.spellcheck import (
     _edit_distance,
     _get_speller,
@@ -14,115 +17,98 @@ from mempalace.spellcheck import (
 )
 
 
-class TestShouldSkip:
-    def test_short_tokens(self):
-        assert _should_skip("hi", set()) is True
-        assert _should_skip("ok", set()) is True
+@pytest.mark.parametrize(
+    ("token", "names", "expected"),
+    [
+        # short tokens
+        ("hi", set(), True),
+        ("ok", set(), True),
+        # digits
+        ("v2.0", set(), True),
+        ("3am", set(), True),
+        # camelCase / PascalCase
+        ("ChromaDB", set(), True),
+        ("MemPalace", set(), True),
+        ("CamelCase", set(), True),
+        ("longMemEval", set(), True),
+        # ALL_CAPS
+        ("NDCG", set(), True),
+        ("API", set(), True),
+        ("MAX_RESULTS", set(), True),
+        ("API_KEY", set(), True),
+        # hyphenated / underscored
+        ("bge-large", set(), True),
+        ("bge-large-en", set(), True),
+        ("train_test", set(), True),
+        ("my_variable", set(), True),
+        # URLs
+        ("https://example.com", set(), True),
+        ("https://example.com/path", set(), True),
+        ("www.example.com", set(), True),
+        # file paths
+        ("/Users/someone/file.txt", set(), True),
+        ("~/Documents", set(), True),
+        ("file.json", set(), True),
+        # markdown formatting
+        ("`code`", set(), True),
+        ("**bold**", set(), True),
+        # known names
+        ("riley", {"riley", "sam"}, True),
+        # normal words — should NOT skip
+        ("hello", set(), False),
+        ("world", set(), False),
+    ],
+)
+def test_should_skip(token, names, expected):
+    assert _should_skip(token, names) is expected
 
-    def test_tokens_with_digits(self):
-        assert _should_skip("v2.0", set()) is True
-        assert _should_skip("3am", set()) is True
 
-    def test_camel_case(self):
-        assert _should_skip("ChromaDB", set()) is True
-        assert _should_skip("MemPalace", set()) is True
-
-    def test_all_caps(self):
-        assert _should_skip("NDCG", set()) is True
-        assert _should_skip("API", set()) is True
-
-    def test_technical_tokens(self):
-        assert _should_skip("bge-large", set()) is True
-        assert _should_skip("train_test", set()) is True
-
-    def test_url_like(self):
-        assert _should_skip("https://example.com", set()) is True
-
-    def test_known_names(self):
-        assert _should_skip("riley", {"riley", "sam"}) is True
-
-    def test_normal_word_not_skipped(self):
-        assert _should_skip("hello", set()) is False
-        assert _should_skip("world", set()) is False
-
-
-class TestEditDistance:
-    def test_identical(self):
-        assert _edit_distance("hello", "hello") == 0
-
-    def test_one_edit(self):
-        assert _edit_distance("hello", "helo") == 1
-
-    def test_two_edits(self):
-        assert _edit_distance("hello", "hllo") == 1
-
-    def test_empty_strings(self):
-        assert _edit_distance("", "") == 0
-        assert _edit_distance("abc", "") == 3
-        assert _edit_distance("", "abc") == 3
-
-    def test_completely_different(self):
-        assert _edit_distance("abc", "xyz") == 3
+@pytest.mark.parametrize(
+    ("a", "b", "expected"),
+    [
+        ("hello", "hello", 0),
+        ("hello", "helo", 1),
+        ("hello", "hllo", 1),
+        ("", "", 0),
+        ("abc", "", 3),
+        ("", "abc", 3),
+        ("abc", "xyz", 3),
+    ],
+)
+def test_edit_distance(a, b, expected):
+    assert _edit_distance(a, b) == expected
 
 
 class TestGetSpeller:
-    def test_returns_none_when_autocorrect_unavailable(self):
+    def test_returns_none_when_autocorrect_unavailable(self, monkeypatch):
         """autocorrect is not installed, so _get_speller should return None."""
-        import mempalace.spellcheck as sc
-
-        old_speller = sc._speller
-        old_available = sc._autocorrect_available
-        try:
-            sc._speller = None
-            sc._autocorrect_available = None
-            result = _get_speller()
-            assert result is None
-            assert sc._autocorrect_available is False
-        finally:
-            sc._speller = old_speller
-            sc._autocorrect_available = old_available
+        monkeypatch.setattr(sc, "_speller", None)
+        monkeypatch.setattr(sc, "_autocorrect_available", None)
+        result = _get_speller()
+        assert result is None
+        assert sc._autocorrect_available is False
 
 
 class TestGetSystemWords:
-    def test_returns_set(self):
+    def test_returns_set(self, monkeypatch):
         """_get_system_words should return a set (possibly empty)."""
-        import mempalace.spellcheck as sc
+        monkeypatch.setattr(sc, "_system_words", None)
+        words = _get_system_words()
+        assert isinstance(words, set)
 
-        old = sc._system_words
-        try:
-            sc._system_words = None
-            words = _get_system_words()
-            assert isinstance(words, set)
-        finally:
-            sc._system_words = old
-
-    def test_caches_result(self):
+    def test_caches_result(self, monkeypatch):
         """Second call returns same object (cached)."""
-        import mempalace.spellcheck as sc
+        monkeypatch.setattr(sc, "_system_words", None)
+        first = _get_system_words()
+        second = _get_system_words()
+        assert first is second
 
-        old = sc._system_words
-        try:
-            sc._system_words = None
-            first = _get_system_words()
-            second = _get_system_words()
-            assert first is second
-        finally:
-            sc._system_words = old
-
-    def test_returns_empty_set_when_dict_missing(self):
+    def test_returns_empty_set_when_dict_missing(self, monkeypatch):
         """When system dict does not exist, returns empty set."""
-        import mempalace.spellcheck as sc
-
-        old_words = sc._system_words
-        old_dict = sc._SYSTEM_DICT
-        try:
-            sc._system_words = None
-            sc._SYSTEM_DICT = Path("/nonexistent/path/to/dict/words")
-            words = _get_system_words()
-            assert words == set()
-        finally:
-            sc._system_words = old_words
-            sc._SYSTEM_DICT = old_dict
+        monkeypatch.setattr(sc, "_system_words", None)
+        monkeypatch.setattr(sc, "_SYSTEM_DICT", Path("/nonexistent/path/to/dict/words"))
+        words = _get_system_words()
+        assert words == set()
 
     def test_nonempty_on_macos(self):
         """On macOS, /usr/share/dict/words exists so the set should be populated."""
@@ -204,230 +190,105 @@ class TestSpellcheckTranscript:
 
 
 class TestGetSpellerWhenAvailable:
-    def test_speller_initialized_when_autocorrect_importable(self):
+    def test_speller_initialized_when_autocorrect_importable(self, monkeypatch):
         """When autocorrect IS available, _get_speller returns a Speller instance."""
-        import mempalace.spellcheck as sc
+        fake_speller = lambda x: x  # noqa: E731
+        monkeypatch.setattr(sc, "_speller", fake_speller)
+        monkeypatch.setattr(sc, "_autocorrect_available", True)
 
-        old_speller = sc._speller
-        old_available = sc._autocorrect_available
-
-        try:
-            sc._speller = None
-            sc._autocorrect_available = None
-
-            # Simulate autocorrect being available by pre-setting the globals
-            # as if the import succeeded.
-            fake_speller = lambda x: x  # noqa: E731
-            sc._speller = fake_speller
-            sc._autocorrect_available = True
-
-            result = _get_speller()
-            assert result is fake_speller
-            assert sc._autocorrect_available is True
-        finally:
-            sc._speller = old_speller
-            sc._autocorrect_available = old_available
+        result = _get_speller()
+        assert result is fake_speller
+        assert sc._autocorrect_available is True
 
 
 class TestGetSystemWordsNoDict:
-    def test_returns_empty_set_on_missing_dict(self):
+    def test_returns_empty_set_on_missing_dict(self, monkeypatch):
         """On a system without /usr/share/dict/words, returns empty set."""
-        import mempalace.spellcheck as sc
-
-        old_words = sc._system_words
-        old_dict = sc._SYSTEM_DICT
-        try:
-            sc._system_words = None
-            sc._SYSTEM_DICT = Path("/no/such/dict/words")
-            words = _get_system_words()
-            assert words == set()
-        finally:
-            sc._system_words = old_words
-            sc._SYSTEM_DICT = old_dict
-
-
-class TestShouldSkipTechnicalPatterns:
-    def test_hyphenated_term(self):
-        assert _should_skip("bge-large-en", set()) is True
-
-    def test_underscored_term(self):
-        assert _should_skip("my_variable", set()) is True
-
-    def test_camelcase_term(self):
-        assert _should_skip("CamelCase", set()) is True
-        assert _should_skip("longMemEval", set()) is True
-
-    def test_all_caps_term(self):
-        assert _should_skip("NDCG", set()) is True
-        assert _should_skip("MAX_RESULTS", set()) is True
-        assert _should_skip("API_KEY", set()) is True
-
-    def test_code_fence_chars(self):
-        assert _should_skip("`code`", set()) is True
-        assert _should_skip("**bold**", set()) is True
-
-    def test_file_path_like(self):
-        assert _should_skip("/Users/someone/file.txt", set()) is True
-        assert _should_skip("~/Documents", set()) is True
-        assert _should_skip("file.json", set()) is True
-
-    def test_url_like(self):
-        assert _should_skip("https://example.com/path", set()) is True
-        assert _should_skip("www.example.com", set()) is True
+        monkeypatch.setattr(sc, "_system_words", None)
+        monkeypatch.setattr(sc, "_SYSTEM_DICT", Path("/no/such/dict/words"))
+        words = _get_system_words()
+        assert words == set()
 
 
 class TestSpellcheckUserTextEntryPoint:
-    def test_no_autocorrect_returns_unchanged(self):
+    def test_no_autocorrect_returns_unchanged(self, monkeypatch):
         """When autocorrect is not installed, spellcheck_user_text returns input as-is."""
-        import mempalace.spellcheck as sc
+        monkeypatch.setattr(sc, "_speller", None)
+        monkeypatch.setattr(sc, "_autocorrect_available", False)
 
-        old_speller = sc._speller
-        old_available = sc._autocorrect_available
-        try:
-            sc._speller = None
-            sc._autocorrect_available = False
+        text = "teh is definitely mispeled text"  # cspell:disable-line
+        result = spellcheck_user_text(text)
+        assert result == text
 
-            text = "teh is definitely mispeled text"  # cspell:disable-line
-            result = spellcheck_user_text(text)
-            assert result == text
-        finally:
-            sc._speller = old_speller
-            sc._autocorrect_available = old_available
-
-    def test_skip_urls_in_text(self):
+    def test_skip_urls_in_text(self, monkeypatch):
         """URLs embedded in text should not be modified."""
-        import mempalace.spellcheck as sc
+        monkeypatch.setattr(sc, "_speller", lambda w: w.lower())
+        monkeypatch.setattr(sc, "_autocorrect_available", True)
 
-        old_speller = sc._speller
-        old_available = sc._autocorrect_available
-        try:
-            # Simulate a speller that lowercases everything (to detect unwanted changes)
-            sc._speller = lambda w: w.lower()
-            sc._autocorrect_available = True
+        text = "visit https://example.com for details"
+        result = spellcheck_user_text(text, known_names=set())
+        assert "https://example.com" in result
 
-            text = "visit https://example.com for details"
-            result = spellcheck_user_text(text, known_names=set())
-            assert "https://example.com" in result
-        finally:
-            sc._speller = old_speller
-            sc._autocorrect_available = old_available
-
-    def test_skip_paths_in_text(self):
+    def test_skip_paths_in_text(self, monkeypatch):
         """File paths in text should not be modified."""
-        import mempalace.spellcheck as sc
+        monkeypatch.setattr(sc, "_speller", lambda w: w.lower())
+        monkeypatch.setattr(sc, "_autocorrect_available", True)
 
-        old_speller = sc._speller
-        old_available = sc._autocorrect_available
-        try:
-            sc._speller = lambda w: w.lower()
-            sc._autocorrect_available = True
+        text = "check ~/Documents/notes.txt please"
+        result = spellcheck_user_text(text, known_names=set())
+        assert "~/Documents/notes.txt" in result
 
-            text = "check ~/Documents/notes.txt please"
-            result = spellcheck_user_text(text, known_names=set())
-            assert "~/Documents/notes.txt" in result
-        finally:
-            sc._speller = old_speller
-            sc._autocorrect_available = old_available
-
-    def test_skip_entity_names(self):
+    def test_skip_entity_names(self, monkeypatch):
         """Known entity names should be preserved."""
-        import mempalace.spellcheck as sc
+        monkeypatch.setattr(sc, "_speller", lambda _word: "corrected")
+        monkeypatch.setattr(sc, "_autocorrect_available", True)
 
-        old_speller = sc._speller
-        old_available = sc._autocorrect_available
-        try:
-            sc._speller = lambda _word: "corrected"
-            sc._autocorrect_available = True
+        text = "Riley went to the store"
+        result = spellcheck_user_text(text, known_names={"riley"})
+        # "Riley" starts uppercase → skipped as proper noun
+        # "went", "store" are valid system words → skipped
+        # "the" is < 4 chars → skipped
+        assert "Riley" in result
 
-            text = "Riley went to the store"
-            result = spellcheck_user_text(text, known_names={"riley"})
-            # "Riley" starts uppercase → skipped as proper noun
-            # "went", "store" are valid system words → skipped
-            # "the" is < 4 chars → skipped
-            assert "Riley" in result
-        finally:
-            sc._speller = old_speller
-            sc._autocorrect_available = old_available
-
-    def test_known_names_loaded_when_none(self):
+    def test_known_names_loaded_when_none(self, monkeypatch):
         """When known_names is None, _load_known_names is called."""
-        import mempalace.spellcheck as sc
+        monkeypatch.setattr(sc, "_speller", None)
+        monkeypatch.setattr(sc, "_autocorrect_available", False)
 
-        old_speller = sc._speller
-        old_available = sc._autocorrect_available
-        try:
-            sc._speller = None
-            sc._autocorrect_available = False
+        # When autocorrect is unavailable, returns text unchanged
+        # but the code path for known_names=None is not reached (early return)
+        text = "hello world"
+        result = spellcheck_user_text(text, known_names=None)
+        assert result == text
 
-            # When autocorrect is unavailable, returns text unchanged
-            # but the code path for known_names=None is not reached (early return)
-            text = "hello world"
-            result = spellcheck_user_text(text, known_names=None)
-            assert result == text
-        finally:
-            sc._speller = old_speller
-            sc._autocorrect_available = old_available
-
-    def test_correction_with_punctuation(self):
+    def test_correction_with_punctuation(self, monkeypatch):
         """Trailing punctuation should be preserved after correction."""
-        import mempalace.spellcheck as sc
+        monkeypatch.setattr(sc, "_speller", lambda _word: "wrong")
+        monkeypatch.setattr(sc, "_autocorrect_available", True)
+        monkeypatch.setattr(sc, "_system_words", set())
 
-        old_speller = sc._speller
-        old_available = sc._autocorrect_available
-        old_words = sc._system_words
-        try:
-            # Use a correction within edit distance 2 of the original
-            sc._speller = lambda _word: "wrong"
-            sc._autocorrect_available = True
-            sc._system_words = set()  # empty so words aren't skipped as valid
+        text = "wrng."
+        result = spellcheck_user_text(text, known_names=set())
+        # "wrng" → "wrong" (edit distance 1), punctuation "." reattached
+        assert result == "wrong."
 
-            text = "wrng."
-            result = spellcheck_user_text(text, known_names=set())
-            # "wrng" → "wrong" (edit distance 1), punctuation "." reattached
-            assert result == "wrong."
-        finally:
-            sc._speller = old_speller
-            sc._autocorrect_available = old_available
-            sc._system_words = old_words
-
-    def test_capitalized_word_skipped(self):
+    def test_capitalized_word_skipped(self, monkeypatch):
         """Words starting with uppercase are treated as proper nouns and skipped."""
-        import mempalace.spellcheck as sc
+        monkeypatch.setattr(sc, "_speller", lambda _word: "wrong")
+        monkeypatch.setattr(sc, "_autocorrect_available", True)
+        monkeypatch.setattr(sc, "_system_words", set())
 
-        old_speller = sc._speller
-        old_available = sc._autocorrect_available
-        old_words = sc._system_words
-        try:
-            sc._speller = lambda _word: "wrong"
-            sc._autocorrect_available = True
-            sc._system_words = set()
+        text = "Boston is nice"
+        result = spellcheck_user_text(text, known_names=set())
+        assert "Boston" in result
 
-            text = "Boston is nice"
-            result = spellcheck_user_text(text, known_names=set())
-            assert "Boston" in result
-        finally:
-            sc._speller = old_speller
-            sc._autocorrect_available = old_available
-            sc._system_words = old_words
-
-    def test_edit_distance_guard(self):
+    def test_edit_distance_guard(self, monkeypatch):
         """Corrections with too-high edit distance are rejected."""
-        import mempalace.spellcheck as sc
+        monkeypatch.setattr(sc, "_speller", lambda _word: "xylophone")
+        monkeypatch.setattr(sc, "_autocorrect_available", True)
+        monkeypatch.setattr(sc, "_system_words", set())
 
-        old_speller = sc._speller
-        old_available = sc._autocorrect_available
-        old_words = sc._system_words
-        try:
-            # Return a very different word (high edit distance)
-            sc._speller = lambda _word: "xylophone"
-            sc._autocorrect_available = True
-            sc._system_words = set()
-
-            text = "test"
-            result = spellcheck_user_text(text, known_names=set())
-            # "test" → "xylophone" has edit distance > 3, should be rejected
-            assert result == "test"
-        finally:
-            sc._speller = old_speller
-            sc._autocorrect_available = old_available
-            sc._system_words = old_words
+        text = "test"
+        result = spellcheck_user_text(text, known_names=set())
+        # "test" → "xylophone" has edit distance > 3, should be rejected
+        assert result == "test"

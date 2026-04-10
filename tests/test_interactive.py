@@ -1,5 +1,7 @@
 """Tests for interactive flows — onboarding and room detection with monkeypatched input."""
 
+import pytest
+
 from mempalace.onboarding import (
     _ask,
     _ask_mode,
@@ -53,17 +55,13 @@ class TestOnboardingHelpers:
 
 
 class TestAskMode:
-    def test_personal(self, monkeypatch):
-        monkeypatch.setattr("builtins.input", lambda _: "2")
-        assert _ask_mode() == "personal"
-
-    def test_work(self, monkeypatch):
-        monkeypatch.setattr("builtins.input", lambda _: "1")
-        assert _ask_mode() == "work"
-
-    def test_combo(self, monkeypatch):
-        monkeypatch.setattr("builtins.input", lambda _: "3")
-        assert _ask_mode() == "combo"
+    @pytest.mark.parametrize(
+        ("input_val", "expected"),
+        [("1", "work"), ("2", "personal"), ("3", "combo")],
+    )
+    def test_valid_choice(self, monkeypatch, input_val, expected):
+        monkeypatch.setattr("builtins.input", lambda _: input_val)
+        assert _ask_mode() == expected
 
     def test_invalid_then_valid(self, monkeypatch):
         responses = iter(["x", "invalid", "2"])

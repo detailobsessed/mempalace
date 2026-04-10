@@ -49,15 +49,52 @@ def _seed_drawers(palace_path, items):
     return col
 
 
+# ============================= NO-PALACE ERROR =============================
+
+
+@pytest.mark.parametrize(
+    ("tool_fn", "args"),
+    [
+        (mcp_server.tool_status, ()),
+        (mcp_server.tool_list_wings, ()),
+        (mcp_server.tool_list_rooms, ()),
+        (mcp_server.tool_get_taxonomy, ()),
+        (mcp_server.tool_search, ("hello",)),
+        (mcp_server.tool_check_duplicate, ("anything",)),
+        (mcp_server.tool_traverse_graph, ("some-room",)),
+        (mcp_server.tool_find_tunnels, ()),
+        (mcp_server.tool_graph_stats, ()),
+        (mcp_server.tool_delete_drawer, ("nonexistent",)),
+    ],
+    ids=[
+        "status",
+        "list_wings",
+        "list_rooms",
+        "get_taxonomy",
+        "search",
+        "check_duplicate",
+        "traverse_graph",
+        "find_tunnels",
+        "graph_stats",
+        "delete_drawer",
+    ],
+)
+def test_no_palace_returns_error(mcp_palace, tool_fn, args):
+    """All read/graph/delete tools return an error dict when no palace exists."""
+    result = tool_fn(*args)
+    assert "error" in result
+
+
+def test_no_palace_status_error_message(mcp_palace):
+    """tool_status returns a specific 'No palace found' error message."""
+    result = mcp_server.tool_status()
+    assert "No palace found" in result["error"]
+
+
 # ============================= READ TOOLS ==================================
 
 
 class TestToolStatus:
-    def test_no_palace(self, mcp_palace):
-        result = mcp_server.tool_status()
-        assert "error" in result
-        assert "No palace found" in result["error"]
-
     def test_with_data(self, mcp_palace):
         _seed_drawers(
             mcp_palace,
@@ -92,10 +129,6 @@ class TestToolStatus:
 
 
 class TestToolListWings:
-    def test_no_palace(self, mcp_palace):
-        result = mcp_server.tool_list_wings()
-        assert "error" in result
-
     def test_with_data(self, mcp_palace):
         _seed_drawers(
             mcp_palace,
@@ -111,10 +144,6 @@ class TestToolListWings:
 
 
 class TestToolListRooms:
-    def test_no_palace(self, mcp_palace):
-        result = mcp_server.tool_list_rooms()
-        assert "error" in result
-
     def test_all_rooms(self, mcp_palace):
         _seed_drawers(
             mcp_palace,
@@ -143,10 +172,6 @@ class TestToolListRooms:
 
 
 class TestToolGetTaxonomy:
-    def test_no_palace(self, mcp_palace):
-        result = mcp_server.tool_get_taxonomy()
-        assert "error" in result
-
     def test_with_data(self, mcp_palace):
         _seed_drawers(
             mcp_palace,
@@ -162,10 +187,6 @@ class TestToolGetTaxonomy:
 
 
 class TestToolSearch:
-    def test_no_palace(self, mcp_palace):
-        result = mcp_server.tool_search("hello")
-        assert "error" in result
-
     def test_search_returns_results(self, mcp_palace):
         _seed_drawers(
             mcp_palace,
@@ -183,10 +204,6 @@ class TestToolSearch:
 
 
 class TestToolCheckDuplicate:
-    def test_no_palace(self, mcp_palace):
-        result = mcp_server.tool_check_duplicate("anything")
-        assert "error" in result
-
     def test_no_duplicate(self, mcp_palace):
         _seed_drawers(
             mcp_palace,
@@ -232,10 +249,6 @@ class TestToolGetAaakSpec:
 
 
 class TestToolTraverseGraph:
-    def test_no_palace(self, mcp_palace):
-        result = mcp_server.tool_traverse_graph("some-room")
-        assert "error" in result
-
     def test_with_data(self, mcp_palace):
         _seed_drawers(
             mcp_palace,
@@ -252,10 +265,6 @@ class TestToolTraverseGraph:
 
 
 class TestToolFindTunnels:
-    def test_no_palace(self, mcp_palace):
-        result = mcp_server.tool_find_tunnels()
-        assert "error" in result
-
     def test_with_data(self, mcp_palace):
         _seed_drawers(
             mcp_palace,
@@ -271,10 +280,6 @@ class TestToolFindTunnels:
 
 
 class TestToolGraphStats:
-    def test_no_palace(self, mcp_palace):
-        result = mcp_server.tool_graph_stats()
-        assert "error" in result
-
     def test_with_data(self, mcp_palace):
         _seed_drawers(
             mcp_palace,
@@ -316,10 +321,6 @@ class TestToolAddDrawer:
 
 
 class TestToolDeleteDrawer:
-    def test_no_palace(self, mcp_palace):
-        result = mcp_server.tool_delete_drawer("nonexistent")
-        assert "error" in result
-
     def test_delete_nonexistent(self, mcp_palace):
         _seed_drawers(
             mcp_palace,
@@ -456,7 +457,8 @@ class TestToolDiaryWrite:
 
 
 class TestToolDiaryRead:
-    def test_no_palace(self, mcp_palace):
+    def test_no_palace_returns_error_or_empty(self, mcp_palace):
+        """diary_read may return entries (empty) even with no palace."""
         result = mcp_server.tool_diary_read("Claude")
         assert "error" in result or "entries" in result
 

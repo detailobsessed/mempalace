@@ -62,14 +62,6 @@ def project_dir(tmp_path):
 
 
 @pytest.fixture
-def palace_path(tmp_path):
-    """Return a fresh palace directory path."""
-    p = tmp_path / "palace"
-    p.mkdir()
-    return str(p)
-
-
-@pytest.fixture
 def convo_dir(tmp_path):
     """Create a directory with fake conversation files."""
     cdir = tmp_path / "convos"

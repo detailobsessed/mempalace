@@ -52,6 +52,7 @@ ci = [
     "pytest>=8",
     "pytest-cov>=6",
     "pytest-randomly>=3.15",
+    "pytest-xdist>=3.5",
     "ty>=0.0.14",
     "poethepoet>=0.41",
 ]
@@ -244,6 +245,7 @@ typecheck = "ty check ."
 
 # Testing
 test = "pytest -m 'not slow'"
+test-fast = "pytest -n auto --dist loadscope -m 'not slow'"
 test-affected = "pytest --testmon --no-cov"
 test-all = "pytest"
 test-cov = "pytest --cov --cov-report=term-missing --cov-report=html"

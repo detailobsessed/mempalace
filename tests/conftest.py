@@ -10,6 +10,7 @@ mempalace imports — so that module-level initialisations (e.g.
 instead of the real user profile.
 """
 
+import atexit
 import os
 import shutil
 import tempfile
@@ -18,6 +19,11 @@ from pathlib import Path
 # ── Isolate HOME before any mempalace imports ──────────────────────────
 _original_env = {}
 _session_tmp = tempfile.mkdtemp(prefix="mempalace_session_")
+
+# Register atexit cleanup so _session_tmp is removed even when the
+# _isolate_home fixture doesn't run (e.g. the pytest-xdist master process
+# imports conftest but never executes fixtures).
+atexit.register(shutil.rmtree, _session_tmp, True)
 
 for _var in ("HOME", "USERPROFILE", "HOMEDRIVE", "HOMEPATH"):
     _original_env[_var] = os.environ.get(_var)
@@ -60,31 +66,23 @@ def _isolate_home():
 
 
 @pytest.fixture
-def tmp_dir():
-    """Create and auto-cleanup a temporary directory."""
-    d = tempfile.mkdtemp(prefix="mempalace_test_")
-    yield d
-    shutil.rmtree(d, ignore_errors=True)
+def palace_path(tmp_path):
+    """Path to an empty palace directory inside tmp_path."""
+    p = tmp_path / "palace"
+    p.mkdir()
+    return str(p)
 
 
 @pytest.fixture
-def palace_path(tmp_dir):
-    """Path to an empty palace directory inside tmp_dir."""
-    p = str(Path(tmp_dir) / "palace")
-    Path(p).mkdir(parents=True)
-    return p
-
-
-@pytest.fixture
-def config(tmp_dir, palace_path):
+def config(tmp_path, palace_path):
     """A MempalaceConfig pointing at the temp palace."""
-    cfg_dir = str(Path(tmp_dir) / "config")
-    Path(cfg_dir).mkdir(parents=True)
+    cfg_dir = tmp_path / "config"
+    cfg_dir.mkdir()
     import json
 
-    with (Path(cfg_dir) / "config.json").open("w", encoding="utf-8") as f:
+    with (cfg_dir / "config.json").open("w", encoding="utf-8") as f:
         json.dump({"palace_path": palace_path}, f)
-    return MempalaceConfig(config_dir=cfg_dir)
+    return MempalaceConfig(config_dir=str(cfg_dir))
 
 
 @pytest.fixture
@@ -152,9 +150,9 @@ def seeded_collection(collection):
 
 
 @pytest.fixture
-def kg(tmp_dir):
+def kg(tmp_path):
     """An isolated KnowledgeGraph using a temp SQLite file."""
-    db_path = str(Path(tmp_dir) / "test_kg.sqlite3")
+    db_path = str(tmp_path / "test_kg.sqlite3")
     return KnowledgeGraph(db_path=db_path)
 
 

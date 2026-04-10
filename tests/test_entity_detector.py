@@ -1,5 +1,7 @@
 """Tests for entity_detector.py — entity extraction and classification."""
 
+import pytest
+
 from mempalace.entity_detector import (
     classify_entity,
     detect_entities,
@@ -75,7 +77,56 @@ class TestScoreEntity:
 
 
 class TestClassifyEntity:
-    def test_person_classification(self):
+    @pytest.mark.parametrize(
+        ("name", "count", "scores", "expected_type"),
+        [
+            (
+                "Alice",
+                10,
+                {
+                    "person_score": 15,
+                    "project_score": 0,
+                    "person_signals": ["dialogue marker (3x)", "action (2x)", "pronoun nearby (1x)"],
+                    "project_signals": [],
+                },
+                "person",
+            ),
+            (
+                "MemPalace",
+                8,
+                {
+                    "person_score": 0,
+                    "project_score": 10,
+                    "person_signals": [],
+                    "project_signals": ["project verb (3x)", "code file reference (2x)"],
+                },
+                "project",
+            ),
+            (
+                "Unknown",
+                5,
+                {"person_score": 0, "project_score": 0, "person_signals": [], "project_signals": []},
+                "uncertain",
+            ),
+            (
+                "Ambiguous",
+                10,
+                {
+                    "person_score": 5,
+                    "project_score": 5,
+                    "person_signals": ["action (1x)"],
+                    "project_signals": ["project verb (1x)"],
+                },
+                "uncertain",
+            ),
+        ],
+        ids=["person", "project", "uncertain-no-signals", "uncertain-mixed"],
+    )
+    def test_classification(self, name, count, scores, expected_type):
+        result = classify_entity(name, count, scores)
+        assert result["type"] == expected_type
+
+    def test_person_confidence_above_half(self):
         scores = {
             "person_score": 15,
             "project_score": 0,
@@ -83,41 +134,9 @@ class TestClassifyEntity:
             "project_signals": [],
         }
         result = classify_entity("Alice", 10, scores)
-        assert result["type"] == "person"
         assert result["confidence"] > 0.5
 
-    def test_project_classification(self):
-        scores = {
-            "person_score": 0,
-            "project_score": 10,
-            "person_signals": [],
-            "project_signals": ["project verb (3x)", "code file reference (2x)"],
-        }
-        result = classify_entity("MemPalace", 8, scores)
-        assert result["type"] == "project"
-
-    def test_uncertain_no_signals(self):
-        scores = {
-            "person_score": 0,
-            "project_score": 0,
-            "person_signals": [],
-            "project_signals": [],
-        }
-        result = classify_entity("Unknown", 5, scores)
-        assert result["type"] == "uncertain"
-
-    def test_uncertain_mixed_signals(self):
-        scores = {
-            "person_score": 5,
-            "project_score": 5,
-            "person_signals": ["action (1x)"],
-            "project_signals": ["project verb (1x)"],
-        }
-        result = classify_entity("Ambiguous", 10, scores)
-        assert result["type"] == "uncertain"
-
     def test_pronoun_only_downgraded(self):
-        # Person-like score but only pronoun signal = uncertain
         scores = {
             "person_score": 8,
             "project_score": 0,
