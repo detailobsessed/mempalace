@@ -77,6 +77,7 @@ mempalace status                        # Show wing/room/drawer counts
 mempalace compress --wing <name>        # Compress drawers with AAAK Dialect
 mempalace split <dir>                   # Split mega-files into per-session files
 mempalace hook run --hook <name> --harness <harness>  # Run a hook handler (stop, precompact)
+mempalace hook logs [-n N] [-f]         # Show hook execution logs (default: 50 lines, -f to follow)
 mempalace instructions <name>           # Output skill instructions to stdout
 mempalace mcp                           # Show MCP setup command for your AI client
 ```

@@ -1,10 +1,10 @@
 [build-system]
-requires = ["uv_build"]
+requires = ["uv_build>=0.6,<0.12"]
 build-backend = "uv_build"
 
 [project]
 name = "mempalace"
-version = "3.0.0"
+version = "0.0.1"
 description = "Give your AI a memory — mine projects and conversations into a searchable palace. No API key required."
 readme = "README.md"
 requires-python = ">=3.14"
@@ -46,6 +46,7 @@ spellcheck = ["autocorrect>=2.0"]
 [dependency-groups]
 maintain = [
     "build>=1.2",
+    "python-semantic-release>=10.5.3",
 ]
 ci = [
     "ruff>=0.14",
@@ -274,3 +275,28 @@ releases = "gh release list --limit 10"
 runs = "gh run list --limit 10"
 checks = "gh pr checks --watch"
 watch = "gh run watch"
+
+# --- Semantic Release ---
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+version_variables = ["src/mempalace/__init__.py:__version__"]
+build_command = "uv lock --upgrade-package mempalace && uv build"
+allow_zero_version = true
+major_on_zero = false
+commit_message = "chore(release): v{version}"
+tag_format = "v{version}"
+
+[tool.semantic_release.branches.bleeding]
+match = "bleeding"
+prerelease = false
+
+[tool.semantic_release.changelog]
+exclude_commit_patterns = [
+    "^chore\\(release\\):",
+    "^Merge ",
+]
+
+[tool.semantic_release.remote]
+type = "github"
+token = { env = "GITHUB_TOKEN" }
