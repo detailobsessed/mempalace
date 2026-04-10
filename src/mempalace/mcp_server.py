@@ -799,7 +799,7 @@ SUPPORTED_PROTOCOL_VERSIONS = [
 ]
 
 
-def handle_request(request):  # noqa: PLR0911
+def handle_request(request):  # noqa: PLR0911, C901
     method = request.get("method", "")
     params = request.get("params", {})
     req_id = request.get("id")
@@ -851,6 +851,12 @@ def handle_request(request):  # noqa: PLR0911
                 "jsonrpc": "2.0",
                 "id": req_id,
                 "result": {"content": [{"type": "text", "text": json.dumps(result, indent=2)}]},
+            }
+        except ValueError as e:
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": {"content": [{"type": "text", "text": json.dumps({"success": False, "error": str(e)})}]},
             }
         except Exception:
             logger.exception(f"Tool error in {tool_name}")

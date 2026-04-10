@@ -29,7 +29,7 @@ os.environ["HOMEPATH"] = os.path.splitdrive(_session_tmp)[1] or _session_tmp
 
 # Preserve the real cache dir so ChromaDB doesn't re-download the ONNX
 # embedding model (~79 MB) into the temp HOME on every test run.
-_real_cache = Path(_original_env.get("HOME") or Path("~").expanduser()) / ".cache"
+_real_cache = Path(_original_env.get("HOME") or _session_tmp) / ".cache"
 _tmp_cache = Path(_session_tmp) / ".cache"
 if _real_cache.is_dir() and not _tmp_cache.exists():
     Path(_tmp_cache).symlink_to(_real_cache)
