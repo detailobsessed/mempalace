@@ -66,12 +66,29 @@ def _seed_drawers(palace_path, items):
         (mcp_server.tool_graph_stats, ()),
         (mcp_server.tool_delete_drawer, ("nonexistent",)),
     ],
-    ids=lambda fn: getattr(fn, "__name__", str(fn)),
+    ids=[
+        "status",
+        "list_wings",
+        "list_rooms",
+        "get_taxonomy",
+        "search",
+        "check_duplicate",
+        "traverse_graph",
+        "find_tunnels",
+        "graph_stats",
+        "delete_drawer",
+    ],
 )
 def test_no_palace_returns_error(mcp_palace, tool_fn, args):
     """All read/graph/delete tools return an error dict when no palace exists."""
     result = tool_fn(*args)
     assert "error" in result
+
+
+def test_no_palace_status_error_message(mcp_palace):
+    """tool_status returns a specific 'No palace found' error message."""
+    result = mcp_server.tool_status()
+    assert "No palace found" in result["error"]
 
 
 # ============================= READ TOOLS ==================================
