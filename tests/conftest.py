@@ -10,6 +10,7 @@ mempalace imports — so that module-level initialisations (e.g.
 instead of the real user profile.
 """
 
+import atexit
 import os
 import shutil
 import tempfile
@@ -18,6 +19,11 @@ from pathlib import Path
 # ── Isolate HOME before any mempalace imports ──────────────────────────
 _original_env = {}
 _session_tmp = tempfile.mkdtemp(prefix="mempalace_session_")
+
+# Register atexit cleanup so _session_tmp is removed even when the
+# _isolate_home fixture doesn't run (e.g. the pytest-xdist master process
+# imports conftest but never executes fixtures).
+atexit.register(shutil.rmtree, _session_tmp, True)
 
 for _var in ("HOME", "USERPROFILE", "HOMEDRIVE", "HOMEPATH"):
     _original_env[_var] = os.environ.get(_var)
