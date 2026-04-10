@@ -379,7 +379,7 @@ def cmd_mcp(args):
         print(f"  {base_server_cmd} --palace /path/to/palace")
 
 
-def main():  # noqa: PLR0914, PLR0915
+def main():  # noqa: PLR0915
     parser = argparse.ArgumentParser(
         description="MemPalace — Give your AI a memory. No API key required.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -523,22 +523,20 @@ def main():  # noqa: PLR0914, PLR0915
         parser.print_help()
         return
 
-    # Handle two-level subcommands
-    if args.command == "hook":
+    # Wrap nested-subparser commands so they validate before dispatching
+    def _dispatch_hook(args):
         if not getattr(args, "hook_action", None):
             p_hook.print_help()
             return
         cmd_hook(args)
-        return
 
-    if args.command == "instructions":
+    def _dispatch_instructions(args):
         name = getattr(args, "instructions_name", None)
         if not name:
             p_instructions.print_help()
             return
         args.name = name
         cmd_instructions(args)
-        return
 
     dispatch = {
         "init": cmd_init,
@@ -550,6 +548,8 @@ def main():  # noqa: PLR0914, PLR0915
         "mcp": cmd_mcp,
         "repair": cmd_repair,
         "status": cmd_status,
+        "hook": _dispatch_hook,
+        "instructions": _dispatch_instructions,
     }
     dispatch[args.command](args)
 
