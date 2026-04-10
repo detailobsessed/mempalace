@@ -6,8 +6,7 @@ import subprocess
 import sys
 
 PLUGIN_JSON = ".claude-plugin/plugin.json"
-MARKETPLACE_JSON = ".claude-plugin/marketplace.json"
-VERSION_FILES = {PLUGIN_JSON, MARKETPLACE_JSON}
+VERSION_FILES = {PLUGIN_JSON}
 
 
 def staged_files() -> set[str]:
@@ -54,9 +53,7 @@ def main() -> int:
     if not plugin_content:
         return 0
 
-    missing = [v for v in (PLUGIN_JSON, MARKETPLACE_JSON) if v not in files or not version_changed(v)]
-
-    if missing:
+    if PLUGIN_JSON not in files or not version_changed(PLUGIN_JSON):
         red = "\033[31m"
         yellow = "\033[33m"
         bold = "\033[1m"
@@ -65,10 +62,7 @@ def main() -> int:
         print(f"  {yellow}Changed files:{reset}")
         for f in sorted(plugin_content):
             print(f"    • {f}")
-        print(f"\n  {yellow}Not bumped:{reset}")
-        for v in missing:
-            print(f"    • {v}")
-        print(f"\n  {yellow}Action:{reset} bump version in {bold}both{reset} plugin.json and marketplace.json\n")
+        print(f"\n  {yellow}Action:{reset} bump version in {bold}{PLUGIN_JSON}{reset}\n")
         return 1
 
     return 0
