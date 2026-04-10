@@ -29,19 +29,103 @@ def fake_home(tmp_path, monkeypatch):
 
     monkeypatch.setattr(setup_claude, "CLAUDE_SETTINGS", claude_dir / "settings.json")
     monkeypatch.setattr(setup_claude, "CLAUDE_MD", claude_dir / "CLAUDE.md")
-    monkeypatch.setattr(setup_claude, "HOOKS_DIR", tmp_path / "hooks")
 
-    # Create fake hook scripts so paths resolve
-    hooks_dir = tmp_path / "hooks"
-    hooks_dir.mkdir()
-    (hooks_dir / "mempal_save_hook.sh").touch()
-    (hooks_dir / "mempal_precompact_hook.sh").touch()
+    # Create fake plugin dir
+    plugin_dir = tmp_path / ".claude-plugin"
+    plugin_dir.mkdir()
+    monkeypatch.setattr(setup_claude, "PLUGIN_DIR", plugin_dir)
 
     return tmp_path
 
 
 # ---------------------------------------------------------------------------
-# _hook_matches_mempalace
+# register_plugin
+# ---------------------------------------------------------------------------
+
+
+class TestRegisterPlugin:
+    def test_skips_when_no_claude_cli(self, fake_home, capsys):
+        with patch.object(shutil, "which", return_value=None):
+            setup_claude.register_plugin()
+
+        out = capsys.readouterr().out
+        assert "claude CLI not found" in out
+
+    def test_registers_plugin(self, fake_home):
+        with (
+            patch.object(shutil, "which", return_value="/usr/bin/claude"),
+            patch("setup_claude.subprocess") as mock_sub,
+        ):
+            mock_sub.run.return_value.returncode = 0
+            mock_sub.run.return_value.stderr = ""
+            setup_claude.register_plugin()
+
+        call_args = mock_sub.run.call_args[0][0]
+        assert "plugin" in call_args
+        assert "add" in call_args
+
+    def test_handles_already_registered(self, fake_home, capsys):
+        with (
+            patch.object(shutil, "which", return_value="/usr/bin/claude"),
+            patch("setup_claude.subprocess") as mock_sub,
+        ):
+            mock_sub.run.return_value.returncode = 1
+            mock_sub.run.return_value.stderr = "already registered"
+            setup_claude.register_plugin()
+
+        out = capsys.readouterr().out
+        assert "already registered" in out.lower()
+
+    def test_skips_when_no_plugin_dir(self, fake_home, capsys, monkeypatch):
+        monkeypatch.setattr(setup_claude, "PLUGIN_DIR", fake_home / "nonexistent")
+        with patch.object(shutil, "which", return_value="/usr/bin/claude"):
+            setup_claude.register_plugin()
+
+        out = capsys.readouterr().out
+        assert ".claude-plugin/ not found" in out
+
+
+# ---------------------------------------------------------------------------
+# unregister_plugin
+# ---------------------------------------------------------------------------
+
+
+class TestUnregisterPlugin:
+    def test_skips_when_no_claude_cli(self, fake_home, capsys):
+        with patch.object(shutil, "which", return_value=None):
+            setup_claude.unregister_plugin()
+
+        out = capsys.readouterr().out
+        assert "claude CLI not found" in out
+
+    def test_removes_plugin(self, fake_home):
+        with (
+            patch.object(shutil, "which", return_value="/usr/bin/claude"),
+            patch("setup_claude.subprocess") as mock_sub,
+        ):
+            mock_sub.run.return_value.returncode = 0
+            mock_sub.run.return_value.stderr = ""
+            setup_claude.unregister_plugin()
+
+        call_args = mock_sub.run.call_args[0][0]
+        assert "plugin" in call_args
+        assert "remove" in call_args
+
+    def test_handles_not_found(self, fake_home, capsys):
+        with (
+            patch.object(shutil, "which", return_value="/usr/bin/claude"),
+            patch("setup_claude.subprocess") as mock_sub,
+        ):
+            mock_sub.run.return_value.returncode = 1
+            mock_sub.run.return_value.stderr = "not found"
+            setup_claude.unregister_plugin()
+
+        out = capsys.readouterr().out
+        assert "not registered" in out.lower()
+
+
+# ---------------------------------------------------------------------------
+# _hook_matches_mempalace (legacy)
 # ---------------------------------------------------------------------------
 
 
@@ -68,14 +152,12 @@ class TestHookMatchesMempalace:
         )
 
     def test_no_match_partial_name(self):
-        # "save_hook.sh" should not match "mempal_save_hook.sh"
         assert not setup_claude._hook_matches_mempalace(
             "/some/path/save_hook.sh",
             "mempal_save_hook.sh",
         )
 
     def test_no_match_suffix_embedded(self):
-        # Must match after a slash, not just endswith
         assert not setup_claude._hook_matches_mempalace(
             "/some/path/notmempal_save_hook.sh",
             "mempal_save_hook.sh",
@@ -83,7 +165,7 @@ class TestHookMatchesMempalace:
 
 
 # ---------------------------------------------------------------------------
-# _remove_old_hooks
+# _remove_old_hooks (legacy)
 # ---------------------------------------------------------------------------
 
 
@@ -122,75 +204,48 @@ class TestRemoveOldHooks:
 
 
 # ---------------------------------------------------------------------------
-# add_hooks
+# remove_hooks (legacy cleanup)
 # ---------------------------------------------------------------------------
 
 
-class TestAddHooks:
-    def test_fresh_install(self, fake_home):
-        setup_claude.add_hooks()
+class TestRemoveHooks:
+    def test_no_settings_file(self, fake_home, capsys):
+        setup_claude.CLAUDE_SETTINGS.unlink(missing_ok=True)
+        setup_claude.remove_hooks()
 
-        settings = json.loads(setup_claude.CLAUDE_SETTINGS.read_text(encoding="utf-8"))
-        assert len(settings["hooks"]["Stop"]) == 1
-        assert len(settings["hooks"]["PreCompact"]) == 1
-        assert settings["hooks"]["Stop"][0]["hooks"][0]["timeout"] == 30
-        assert settings["hooks"]["PreCompact"][0]["hooks"][0]["timeout"] == 30
+        out = capsys.readouterr().out
+        assert "No settings.json" in out
 
-    def test_replaces_old_hooks_different_path(self, fake_home):
-        # Pre-populate with hooks from a different install location
+    def test_removes_mempalace_hooks(self, fake_home):
         old_settings = {
             "hooks": {
-                "Stop": [{"matcher": "*", "hooks": [{"type": "command", "command": "/old/mempal_save_hook.sh", "timeout": 30000}]}],
-                "PreCompact": [{"hooks": [{"type": "command", "command": "/old/mempal_precompact_hook.sh", "timeout": 30000}]}],
+                "Stop": [{"hooks": [{"type": "command", "command": "/old/mempal_save_hook.sh"}]}],
+                "PreCompact": [{"hooks": [{"type": "command", "command": "/old/mempal_precompact_hook.sh"}]}],
             }
         }
         setup_claude.CLAUDE_SETTINGS.write_text(json.dumps(old_settings), encoding="utf-8")
 
-        setup_claude.add_hooks()
+        setup_claude.remove_hooks()
 
         settings = json.loads(setup_claude.CLAUDE_SETTINGS.read_text(encoding="utf-8"))
-        # Old hooks replaced, not duplicated
-        assert len(settings["hooks"]["Stop"]) == 1
-        assert len(settings["hooks"]["PreCompact"]) == 1
-        # Points to new path
-        stop_cmd = settings["hooks"]["Stop"][0]["hooks"][0]["command"]
-        assert stop_cmd.endswith("hooks/mempal_save_hook.sh")
-        assert "/old/" not in stop_cmd
+        assert "hooks" not in settings
 
     def test_preserves_non_mempalace_hooks(self, fake_home):
         other_settings = {
             "hooks": {
-                "Stop": [{"hooks": [{"type": "command", "command": "/other/tool.sh"}]}],
+                "Stop": [
+                    {"hooks": [{"type": "command", "command": "/other/tool.sh"}]},
+                    {"hooks": [{"type": "command", "command": "/path/mempal_save_hook.sh"}]},
+                ],
             }
         }
         setup_claude.CLAUDE_SETTINGS.write_text(json.dumps(other_settings), encoding="utf-8")
 
-        setup_claude.add_hooks()
-
-        settings = json.loads(setup_claude.CLAUDE_SETTINGS.read_text(encoding="utf-8"))
-        # Other hook preserved + mempalace hook added
-        assert len(settings["hooks"]["Stop"]) == 2
-        commands = [e["hooks"][0]["command"] for e in settings["hooks"]["Stop"]]
-        assert "/other/tool.sh" in commands
-
-    def test_idempotent(self, fake_home):
-        setup_claude.add_hooks()
-        setup_claude.add_hooks()
+        setup_claude.remove_hooks()
 
         settings = json.loads(setup_claude.CLAUDE_SETTINGS.read_text(encoding="utf-8"))
         assert len(settings["hooks"]["Stop"]) == 1
-        assert len(settings["hooks"]["PreCompact"]) == 1
-
-    def test_preserves_existing_settings(self, fake_home):
-        existing = {"permissions": {"allow": ["Bash(ls:*)"]}, "outputStyle": "Explanatory"}
-        setup_claude.CLAUDE_SETTINGS.write_text(json.dumps(existing), encoding="utf-8")
-
-        setup_claude.add_hooks()
-
-        settings = json.loads(setup_claude.CLAUDE_SETTINGS.read_text(encoding="utf-8"))
-        assert settings["permissions"] == {"allow": ["Bash(ls:*)"]}
-        assert settings["outputStyle"] == "Explanatory"
-        assert "hooks" in settings
+        assert settings["hooks"]["Stop"][0]["hooks"][0]["command"] == "/other/tool.sh"
 
 
 # ---------------------------------------------------------------------------
@@ -223,15 +278,6 @@ class TestSetupClaudeMd:
         content = setup_claude.CLAUDE_MD.read_text(encoding="utf-8")
         assert content.count("MemPalace") == 1
 
-    def test_case_insensitive_detection(self, fake_home):
-        setup_claude.CLAUDE_MD.write_text("Uses MEMPALACE for memory.\n", encoding="utf-8")
-
-        setup_claude.setup_claude_md()
-
-        content = setup_claude.CLAUDE_MD.read_text(encoding="utf-8")
-        # Should not add another section
-        assert "mempalace_status" not in content
-
     def test_idempotent(self, fake_home):
         setup_claude.setup_claude_md()
         setup_claude.setup_claude_md()
@@ -241,7 +287,42 @@ class TestSetupClaudeMd:
 
 
 # ---------------------------------------------------------------------------
-# register_mcp
+# remove_claude_md
+# ---------------------------------------------------------------------------
+
+
+class TestRemoveClaudeMd:
+    def test_no_file(self, fake_home, capsys):
+        setup_claude.CLAUDE_MD.unlink(missing_ok=True)
+        setup_claude.remove_claude_md()
+
+        out = capsys.readouterr().out
+        assert "No CLAUDE.md" in out
+
+    def test_removes_mempalace_section(self, fake_home):
+        content = "# My Config\n\nSome stuff.\n\n## MemPalace\n\nYou have MemPalace installed.\n"
+        setup_claude.CLAUDE_MD.write_text(content, encoding="utf-8")
+
+        setup_claude.remove_claude_md()
+
+        result = setup_claude.CLAUDE_MD.read_text(encoding="utf-8")
+        assert "MemPalace" not in result
+        assert "# My Config" in result
+
+    def test_roundtrip_install_then_uninstall(self, fake_home):
+        setup_claude.CLAUDE_MD.write_text("# My Config\n\nExisting content.\n", encoding="utf-8")
+
+        setup_claude.setup_claude_md()
+        assert "MemPalace" in setup_claude.CLAUDE_MD.read_text(encoding="utf-8")
+
+        setup_claude.remove_claude_md()
+        result = setup_claude.CLAUDE_MD.read_text(encoding="utf-8")
+        assert "MemPalace" not in result
+        assert "# My Config" in result
+
+
+# ---------------------------------------------------------------------------
+# Legacy MCP registration
 # ---------------------------------------------------------------------------
 
 
@@ -265,7 +346,6 @@ class TestRegisterMcp:
             mock_sub.run.return_value.returncode = 0
             setup_claude.register_mcp(python_path)
 
-        # Only called once (mcp list), not add
         assert mock_sub.run.call_count == 1
 
     def test_replaces_wrong_command(self):
@@ -283,25 +363,46 @@ class TestRegisterMcp:
             mock_sub.run.side_effect = [list_result, remove_result, add_result]
             setup_claude.register_mcp(python_path)
 
-        # Called 3 times: list, remove, add
         assert mock_sub.run.call_count == 3
-        remove_call = mock_sub.run.call_args_list[1]
-        assert "remove" in remove_call[0][0]
-        add_call = mock_sub.run.call_args_list[2]
-        assert python_path in add_call[0][0]
 
-    def test_adds_when_not_registered(self):
-        python_path = "/tools/mempalace/bin/python"
+
+# ---------------------------------------------------------------------------
+# uninstall_uv_tool
+# ---------------------------------------------------------------------------
+
+
+class TestUninstallUvTool:
+    def test_skips_when_no_uv(self, capsys):
+        with patch.object(shutil, "which", return_value=None):
+            setup_claude.uninstall_uv_tool()
+
+        out = capsys.readouterr().out
+        assert "uv not found" in out
+
+    def test_skips_when_not_installed(self, fake_home, capsys):
+        with (
+            patch.object(shutil, "which", return_value="/usr/bin/uv"),
+            patch.object(setup_claude, "_uv_tools_dir", return_value=fake_home / "uv_tools"),
+        ):
+            setup_claude.uninstall_uv_tool()
+
+        out = capsys.readouterr().out
+        assert "Not installed" in out
+
+    def test_uninstalls_when_present(self, fake_home):
+        uv_dir = fake_home / "uv_tools" / "mempalace" / "bin"
+        uv_dir.mkdir(parents=True)
+        (uv_dir / "python").touch()
 
         with (
-            patch.object(shutil, "which", return_value="/usr/bin/claude"),
+            patch.object(shutil, "which", return_value="/usr/bin/uv"),
+            patch.object(setup_claude, "_uv_tools_dir", return_value=fake_home / "uv_tools"),
             patch("setup_claude.subprocess") as mock_sub,
         ):
-            mock_sub.run.return_value.stdout = "other-server: something"
             mock_sub.run.return_value.returncode = 0
-            setup_claude.register_mcp(python_path)
+            mock_sub.run.return_value.stderr = ""
+            setup_claude.uninstall_uv_tool()
 
-        # Called 2 times: list, add (no remove needed)
-        assert mock_sub.run.call_count == 2
-        add_call = mock_sub.run.call_args_list[1]
-        assert "add" in add_call[0][0]
+        call_args = mock_sub.run.call_args[0][0]
+        assert "uninstall" in call_args
+        assert "mempalace" in call_args

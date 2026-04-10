@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """
-Install MemPalace integration for Claude Code.
+Install or uninstall MemPalace integration for Claude Code.
 
 Sets up:
   - mempalace uv tool   (editable install from this repo)
-  - Global MCP server  (claude mcp add mempalace -s user)
-  - Auto-save hooks    (~/.claude/settings.json: Stop + PreCompact)
-  - CLAUDE.md entry    (~/.claude/CLAUDE.md: mempalace awareness)
+  - Claude Code plugin  (claude plugin add .claude-plugin)
 
 Usage:
-    python scripts/setup_claude.py
+    python scripts/setup_claude.py              # install
+    python scripts/setup_claude.py --uninstall  # remove everything
 
 Idempotent — safe to run multiple times.
 Installs from the local clone so your fork's fixes are always in effect.
@@ -20,13 +19,14 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-HOOKS_DIR = REPO_ROOT / "hooks"
+PLUGIN_DIR = REPO_ROOT / ".claude-plugin"
 CLAUDE_SETTINGS = Path.home() / ".claude" / "settings.json"
 CLAUDE_MD = Path.home() / ".claude" / "CLAUDE.md"
 
@@ -81,7 +81,43 @@ def find_python() -> str:
 
 
 # ---------------------------------------------------------------------------
-# MCP registration
+# Plugin registration
+# ---------------------------------------------------------------------------
+
+
+def register_plugin() -> None:
+    """Register the .claude-plugin as a local Claude Code plugin."""
+    print("Registering plugin...")
+
+    claude = shutil.which("claude")
+    if not claude:
+        print("  ! claude CLI not found — skipping plugin registration.")
+        print("    Install it from https://claude.ai/download and re-run.")
+        return
+
+    if not PLUGIN_DIR.exists():
+        print(f"  ! .claude-plugin/ not found at {PLUGIN_DIR}")
+        return
+
+    result = subprocess.run(
+        [claude, "plugin", "add", str(PLUGIN_DIR)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode == 0:
+        print(f"  ✓ Plugin registered from {PLUGIN_DIR}")
+    else:
+        # Plugin may already be registered
+        stderr = result.stderr.strip()
+        if "already" in stderr.lower():
+            print("  ✓ Plugin already registered — skipping.")
+        else:
+            print(f"  ⚠ Plugin registration failed: {stderr}")
+
+
+# ---------------------------------------------------------------------------
+# Legacy MCP registration (kept for migration/cleanup)
 # ---------------------------------------------------------------------------
 
 
@@ -140,75 +176,6 @@ def register_mcp(python_path: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Hook installation
-# ---------------------------------------------------------------------------
-
-
-def _hook_matches_mempalace(command: str, script_name: str) -> bool:
-    """Check if a hook command refers to a mempalace hook by filename."""
-    return command.endswith("/" + script_name) or command == script_name
-
-
-def _remove_old_hooks(entries: list[dict], script_name: str) -> int:
-    """Remove any existing mempalace hook entries matching the script name.
-
-    Returns the number of entries removed.
-    """
-    before = len(entries)
-    entries[:] = [
-        entry for entry in entries if not any(_hook_matches_mempalace(h.get("command", ""), script_name) for h in entry.get("hooks", []))
-    ]
-    return before - len(entries)
-
-
-def add_hooks() -> None:
-    """Merge Stop and PreCompact hooks into ~/.claude/settings.json.
-
-    Replaces any existing mempalace hooks (regardless of install path)
-    with hooks pointing to this repo's hooks directory.
-    """
-    print("Installing hooks...")
-
-    save_hook = str(HOOKS_DIR / "mempal_save_hook.sh")
-    precompact_hook = str(HOOKS_DIR / "mempal_precompact_hook.sh")
-
-    settings: dict = {}
-    if CLAUDE_SETTINGS.exists():
-        with CLAUDE_SETTINGS.open(encoding="utf-8") as f:
-            settings = json.load(f)
-
-    hooks = settings.setdefault("hooks", {})
-
-    # -- Stop hook -----------------------------------------------------------
-    stop_entries = hooks.setdefault("Stop", [])
-    removed = _remove_old_hooks(stop_entries, "mempal_save_hook.sh")
-    if removed:
-        print(f"  ✓ Removed {removed} old Stop hook(s)")
-    stop_entries.append({
-        "matcher": "",
-        "hooks": [{"type": "command", "command": save_hook, "timeout": 30}],
-    })
-    print("  ✓ Stop hook set")
-    print(f"      {save_hook}")
-
-    # -- PreCompact hook -----------------------------------------------------
-    precompact_entries = hooks.setdefault("PreCompact", [])
-    removed = _remove_old_hooks(precompact_entries, "mempal_precompact_hook.sh")
-    if removed:
-        print(f"  ✓ Removed {removed} old PreCompact hook(s)")
-    precompact_entries.append({
-        "hooks": [{"type": "command", "command": precompact_hook, "timeout": 30}],
-    })
-    print("  ✓ PreCompact hook set")
-    print(f"      {precompact_hook}")
-
-    CLAUDE_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
-    with CLAUDE_SETTINGS.open("w", encoding="utf-8") as f:
-        json.dump(settings, f, indent=2)
-        f.write("\n")
-
-
-# ---------------------------------------------------------------------------
 # CLAUDE.md setup
 # ---------------------------------------------------------------------------
 
@@ -235,26 +202,217 @@ def setup_claude_md() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Uninstall
+# ---------------------------------------------------------------------------
+
+
+def unregister_plugin() -> None:
+    """Remove the mempalace plugin from Claude Code."""
+    print("Removing plugin...")
+    claude = shutil.which("claude")
+    if not claude:
+        print("  ! claude CLI not found — skipping.")
+        return
+
+    result = subprocess.run(
+        [claude, "plugin", "remove", "mempalace"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode == 0:
+        print("  ✓ Plugin removed")
+    else:
+        stderr = result.stderr.strip()
+        if "not found" in stderr.lower() or "not registered" in stderr.lower():
+            print("  ✓ Plugin not registered — nothing to remove.")
+        else:
+            print(f"  ⚠ Failed to remove plugin: {stderr}")
+
+
+def unregister_mcp() -> None:
+    """Remove the mempalace MCP server registration (legacy cleanup)."""
+    print("Removing legacy MCP server...")
+    claude = shutil.which("claude")
+    if not claude:
+        print("  ! claude CLI not found — skipping.")
+        return
+
+    result = subprocess.run(
+        [claude, "mcp", "list"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if "mempalace" not in result.stdout:
+        print("  ✓ Not registered — nothing to remove.")
+        return
+
+    rm = subprocess.run(
+        [claude, "mcp", "remove", "mempalace", "-s", "user"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if rm.returncode == 0:
+        print("  ✓ Removed legacy MCP server registration")
+    else:
+        print(f"  ⚠ Failed to remove: {rm.stderr.strip()}")
+
+
+def _hook_matches_mempalace(command: str, script_name: str) -> bool:
+    """Check if a hook command refers to a mempalace hook by filename."""
+    return command.endswith("/" + script_name) or command == script_name
+
+
+def _remove_old_hooks(entries: list[dict], script_name: str) -> int:
+    """Remove any existing mempalace hook entries matching the script name.
+
+    Returns the number of entries removed.
+    """
+    before = len(entries)
+    entries[:] = [
+        entry for entry in entries if not any(_hook_matches_mempalace(h.get("command", ""), script_name) for h in entry.get("hooks", []))
+    ]
+    return before - len(entries)
+
+
+def remove_hooks() -> None:
+    """Remove mempalace hooks from ~/.claude/settings.json (legacy cleanup)."""
+    print("Removing legacy hooks...")
+    if not CLAUDE_SETTINGS.exists():
+        print("  ✓ No settings.json — nothing to remove.")
+        return
+
+    with CLAUDE_SETTINGS.open(encoding="utf-8") as f:
+        settings = json.load(f)
+
+    hooks = settings.get("hooks", {})
+    total_removed = 0
+
+    for hook_type in ("Stop", "PreCompact"):
+        entries = hooks.get(hook_type, [])
+        for script_name in ("mempal_save_hook.sh", "mempal_precompact_hook.sh"):
+            total_removed += _remove_old_hooks(entries, script_name)
+        # Clean up empty arrays
+        if not entries:
+            hooks.pop(hook_type, None)
+
+    # Clean up empty hooks dict
+    if not hooks:
+        settings.pop("hooks", None)
+
+    with CLAUDE_SETTINGS.open("w", encoding="utf-8") as f:
+        json.dump(settings, f, indent=2)
+        f.write("\n")
+
+    if total_removed:
+        print(f"  ✓ Removed {total_removed} legacy hook(s)")
+    else:
+        print("  ✓ No legacy mempalace hooks found.")
+
+
+def remove_claude_md() -> None:
+    """Remove the MemPalace section from ~/.claude/CLAUDE.md."""
+    print("Removing CLAUDE.md section...")
+    if not CLAUDE_MD.exists():
+        print("  ✓ No CLAUDE.md — nothing to remove.")
+        return
+
+    content = CLAUDE_MD.read_text(encoding="utf-8")
+    if "mempalace" not in content.lower():
+        print("  ✓ No MemPalace section found.")
+        return
+
+    # Remove the ## MemPalace section (everything from the heading to the next ## or EOF)
+    cleaned = re.sub(
+        r"\n*## MemPalace\b.*?(?=\n## |\Z)",
+        "",
+        content,
+        flags=re.DOTALL,
+    )
+    cleaned = cleaned.rstrip() + "\n" if cleaned.strip() else ""
+
+    CLAUDE_MD.write_text(cleaned, encoding="utf-8")
+    print("  ✓ MemPalace section removed")
+
+
+def uninstall_uv_tool() -> None:
+    """Uninstall the mempalace uv tool."""
+    print("Uninstalling uv tool...")
+    uv = shutil.which("uv")
+    if not uv:
+        print("  ! uv not found — skipping.")
+        return
+
+    uv_python = _uv_tools_dir() / "mempalace" / "bin" / "python"
+    if not uv_python.exists():
+        print("  ✓ Not installed — nothing to remove.")
+        return
+
+    result = subprocess.run(
+        [uv, "tool", "uninstall", "mempalace"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode == 0:
+        print("  ✓ Uninstalled mempalace uv tool")
+    else:
+        print(f"  ⚠ Failed: {result.stderr.strip()}")
+
+
+def uninstall() -> None:
+    """Remove all mempalace integrations from Claude Code."""
+    print("Uninstalling mempalace...\n")
+
+    unregister_plugin()
+    print()
+    unregister_mcp()
+    print()
+    remove_hooks()
+    print()
+    remove_claude_md()
+    print()
+    uninstall_uv_tool()
+
+    print("\nDone! Restart Claude Code for changes to take effect.")
+
+
+# ---------------------------------------------------------------------------
 # Entrypoint
 # ---------------------------------------------------------------------------
 
 
 def main() -> None:
-    if not HOOKS_DIR.exists():
+    if "--uninstall" in sys.argv:
+        uninstall()
+        return
+
+    if not PLUGIN_DIR.exists():
         print(
-            f"Error: hooks/ not found at {HOOKS_DIR}\nRun this script from inside the mempalace repo.",
+            f"Error: .claude-plugin/ not found at {PLUGIN_DIR}\nRun this script from inside the mempalace repo.",
             file=sys.stderr,
         )
         sys.exit(1)
 
-    print("Installing mempalace...")
-    python_path = find_python()
-    print(f"  Using Python: {python_path}\n")
+    print("Installing mempalace...\n")
 
-    register_mcp(python_path)
+    # Step 1: Ensure uv tool is installed (puts mempalace + mempalace-mcp-server on PATH)
+    find_python()
     print()
-    add_hooks()
+
+    # Step 2: Register as a Claude Code plugin (hooks, MCP, skills, commands)
+    register_plugin()
     print()
+
+    # Step 3: Clean up any legacy manual registrations
+    unregister_mcp()
+    print()
+    remove_hooks()
+    print()
+
+    # Step 4: CLAUDE.md awareness
     setup_claude_md()
 
     print("\nDone! Restart Claude Code for changes to take effect.")

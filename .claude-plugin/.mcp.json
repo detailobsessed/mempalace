@@ -1,0 +1,6 @@
+{
+  "mempalace": {
+    "command": "mempalace-mcp-server",
+    "args": []
+  }
+}

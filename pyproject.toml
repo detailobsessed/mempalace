@@ -38,6 +38,7 @@ Repository = "https://github.com/detailobsessed/mempalace"
 
 [project.scripts]
 mempalace = "mempalace.cli:main"
+mempalace-mcp-server = "mempalace.mcp_server:main"
 
 [project.optional-dependencies]
 spellcheck = ["autocorrect>=2.0"]
@@ -163,15 +164,19 @@ ignore = [
     "PLC0415",    # Lazy imports for fast CLI startup
 ]
 "tests/**" = [
-    "S101", "S105", "S404", "S603", "S607",  # Allow assert, hardcoded secrets, subprocess in tests
+    "S101", "S105", "S108", "S404", "S603", "S607",  # Allow assert, hardcoded secrets, temp paths, subprocess in tests
     "T201",       # Allow print in tests
     "PLR6301",    # Test methods don't use self
     "PLR2004",    # Magic values in assertions
     "PLC0415",    # Lazy imports in test functions
     "PLC2701",    # Private name imports for testing internals
+    "ARG001",     # Unused function arguments (mock callbacks)
     "ARG002",     # Unused method arguments (fixtures)
     "DTZ005",     # Naive datetime in tests
     "PLR0904",    # Test classes naturally have many test methods
+    "SIM117",     # Nested with statements common in mock-heavy tests
+    "EM101",      # String literals in test exceptions are fine
+    "ERA001",     # Comment separators in test files
 ]
 
 [tool.ruff.lint.mccabe]
