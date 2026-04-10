@@ -18,21 +18,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 SAVE_INTERVAL = 15
-STATE_DIR = Path.home() / ".mempalace" / "hook_state"
-
-STOP_BLOCK_REASON = (
-    "AUTO-SAVE checkpoint. Save key topics, decisions, quotes, and code "
-    "from this session to your memory system. Organize into appropriate "
-    "categories. Use verbatim quotes where possible. Continue conversation "
-    "after saving."
-)
+_CONFIG_DIR = Path.home() / ".mempalace"
+STATE_DIR = _CONFIG_DIR / "hook_state"
 
 PRECOMPACT_BLOCK_REASON = (
-    "COMPACTION IMMINENT. Save ALL topics, decisions, quotes, code, and "
-    "important context from this session to your memory system. Be thorough "
-    "\u2014 after compaction, detailed context will be lost. Organize into "
-    "appropriate categories. Use verbatim quotes where possible. Save "
-    "everything, then allow compaction to proceed."
+    "COMPACTION IMMINENT \u2014 session transcript has been automatically "
+    "mined into the palace. You may continue; detailed context from earlier "
+    "messages will be compacted."
 )
 
 
@@ -108,6 +100,37 @@ def _maybe_auto_ingest() -> None:
             pass
 
 
+def _is_auto_save_enabled() -> bool:
+    """Check if stop hook auto-save is enabled in config (default: True)."""
+    config_file = _CONFIG_DIR / "config.json"
+    if not config_file.is_file():
+        return True
+    try:
+        with config_file.open(encoding="utf-8") as f:
+            config = json.load(f)
+        return config.get("stop_hook", {}).get("auto_save", True)
+    except json.JSONDecodeError, OSError:
+        return True
+
+
+def _mine_transcript(transcript_path: str) -> None:
+    """Mine the Claude Code transcript into the palace in background."""
+    path = Path(transcript_path).expanduser()
+    if not path.is_file():
+        return
+    try:
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        log_path = STATE_DIR / "hook.log"
+        with log_path.open("a", encoding="utf-8") as log_f:
+            subprocess.Popen(  # noqa: S603
+                [sys.executable, "-m", "mempalace", "mine", str(path.parent), "--mode", "convos"],
+                stdout=log_f,
+                stderr=log_f,
+            )
+    except OSError:
+        pass
+
+
 SUPPORTED_HARNESSES = {"claude-code", "codex"}
 
 
@@ -152,7 +175,7 @@ def hook_stop(data: dict, harness: str) -> None:
 
     _log(f"Session {session_id}: {exchange_count} exchanges, {since_last} since last save")
 
-    if since_last >= SAVE_INTERVAL and exchange_count > 0:
+    if since_last >= SAVE_INTERVAL and exchange_count > 0 and _is_auto_save_enabled():
         # Update last save point
         with contextlib.suppress(OSError):
             last_save_file.write_text(str(exchange_count), encoding="utf-8")
@@ -160,10 +183,9 @@ def hook_stop(data: dict, harness: str) -> None:
         _log(f"TRIGGERING SAVE at exchange {exchange_count}")
 
         _maybe_auto_ingest()
+        _mine_transcript(transcript_path)
 
-        _output({"decision": "block", "reason": STOP_BLOCK_REASON})
-    else:
-        _output({})
+    _output({})
 
 
 def hook_session_start(data: dict, harness: str) -> None:
@@ -178,10 +200,31 @@ def hook_session_start(data: dict, harness: str) -> None:
     _output({})
 
 
+def _mine_transcript_sync(transcript_path: str) -> None:
+    """Mine the Claude Code transcript into the palace synchronously."""
+    path = Path(transcript_path).expanduser()
+    if not path.is_file():
+        return
+    try:
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        log_path = STATE_DIR / "hook.log"
+        with log_path.open("a", encoding="utf-8") as log_f:
+            subprocess.run(  # noqa: S603
+                [sys.executable, "-m", "mempalace", "mine", str(path.parent), "--mode", "convos"],
+                stdout=log_f,
+                stderr=log_f,
+                timeout=60,
+                check=False,
+            )
+    except OSError, subprocess.SubprocessError:
+        pass
+
+
 def hook_precompact(data: dict, harness: str) -> None:
     """Precompact hook: always block with comprehensive save instruction."""
     parsed = _parse_harness_input(data, harness)
     session_id = parsed["session_id"]
+    transcript_path = parsed["transcript_path"]
 
     _log(f"PRE-COMPACT triggered for session {session_id}")
 
@@ -200,6 +243,9 @@ def hook_precompact(data: dict, harness: str) -> None:
                 )
         except OSError, subprocess.SubprocessError:
             pass
+
+    # Mine transcript synchronously before compaction
+    _mine_transcript_sync(transcript_path)
 
     _output({"decision": "block", "reason": PRECOMPACT_BLOCK_REASON})
 
