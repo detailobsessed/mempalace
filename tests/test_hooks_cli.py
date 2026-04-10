@@ -114,7 +114,10 @@ def _capture_hook_output(hook_fn, data, harness="claude-code", state_dir=None):
     buf = io.StringIO()
     patches = [patch("mempalace.hooks_cli._output", side_effect=lambda d: buf.write(json.dumps(d)))]
     if state_dir:
-        patches.append(patch("mempalace.hooks_cli.STATE_DIR", state_dir))
+        patches.extend([
+            patch("mempalace.hooks_cli.STATE_DIR", state_dir),
+            patch("mempalace.hooks_cli._CONFIG_DIR", state_dir),
+        ])
     with contextlib.ExitStack() as stack:
         for p in patches:
             stack.enter_context(p)
@@ -326,10 +329,9 @@ def test_stop_hook_skips_mining_when_auto_save_disabled(tmp_path):
         transcript,
         [{"message": {"role": "user", "content": f"msg {i}"}} for i in range(SAVE_INTERVAL)],
     )
-    config_dir = tmp_path / "config"
-    config_dir.mkdir()
-    (config_dir / "config.json").write_text(json.dumps({"stop_hook": {"auto_save": False}}), encoding="utf-8")
-    with patch("mempalace.hooks_cli._mine_transcript") as mock_mine, patch("mempalace.hooks_cli._CONFIG_DIR", config_dir):
+    # Write config.json into tmp_path which _capture_hook_output patches as _CONFIG_DIR
+    (tmp_path / "config.json").write_text(json.dumps({"stop_hook": {"auto_save": False}}), encoding="utf-8")
+    with patch("mempalace.hooks_cli._mine_transcript") as mock_mine:
         result = _capture_hook_output(
             hook_stop,
             {"session_id": "test", "stop_hook_active": False, "transcript_path": str(transcript)},
