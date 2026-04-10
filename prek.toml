@@ -127,6 +127,16 @@ pass_filenames = false
 stages = ["pre-push"]
 
 [[repos.hooks]]
+id = "check-plugin-version"
+name = "plugin content changed without version bump"
+entry = "uv run scripts/check_plugin_version.py"
+language = "system"
+files = { glob = [".claude-plugin/**"] }
+pass_filenames = false
+stages = ["pre-commit"]
+priority = 0
+
+[[repos.hooks]]
 id = "check-template-update"
 name = "check for template updates"
 entry = "bash scripts/check-template-update.sh"

@@ -9,6 +9,7 @@ import pytest
 
 from mempalace.cli import (
     cmd_compress,
+    cmd_hook_logs,
     cmd_mine,
     cmd_search,
     cmd_split,
@@ -719,3 +720,32 @@ class TestMain:
         assert dispatched["agent"] == "mempalace"
         assert dispatched["limit"] == 0
         assert dispatched["dry_run"] is False
+
+
+class TestCmdHookLogs:
+    def test_no_log_file(self, tmp_path, capsys, monkeypatch):
+        monkeypatch.setattr("mempalace.hooks_cli.STATE_DIR", tmp_path)
+        args = argparse.Namespace(lines=50, follow=False)
+        cmd_hook_logs(args)
+        assert "No hook log found" in capsys.readouterr().out
+
+    def test_shows_last_n_lines(self, tmp_path, capsys, monkeypatch):
+        monkeypatch.setattr("mempalace.hooks_cli.STATE_DIR", tmp_path)
+        log = tmp_path / "hook.log"
+        log.write_text("\n".join(f"line {i}" for i in range(20)), encoding="utf-8")
+        args = argparse.Namespace(lines=5, follow=False)
+        cmd_hook_logs(args)
+        out = capsys.readouterr().out
+        assert "line 15" in out
+        assert "line 19" in out
+        assert "line 14" not in out
+
+    def test_defaults_to_50_lines(self, tmp_path, capsys, monkeypatch):
+        monkeypatch.setattr("mempalace.hooks_cli.STATE_DIR", tmp_path)
+        log = tmp_path / "hook.log"
+        log.write_text("\n".join(f"line {i}" for i in range(100)), encoding="utf-8")
+        args = argparse.Namespace(lines=50, follow=False)
+        cmd_hook_logs(args)
+        out = capsys.readouterr().out
+        assert "line 50" in out
+        assert "line 49" not in out

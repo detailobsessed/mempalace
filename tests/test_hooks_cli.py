@@ -173,7 +173,7 @@ def test_stop_hook_allows_at_interval_and_mines(tmp_path):
             state_dir=tmp_path,
         )
     assert result == {}
-    mock_mine.assert_called_once_with(str(transcript))
+    mock_mine.assert_called_once_with(str(transcript), sync=True)
 
 
 def test_stop_hook_tracks_save_point(tmp_path):

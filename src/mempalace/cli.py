@@ -351,6 +351,26 @@ def cmd_hook(args):
     run_hook(hook_name=args.hook, harness=args.harness)
 
 
+def cmd_hook_logs(args):
+    """Show hook logs."""
+    from .hooks_cli import STATE_DIR
+
+    log_path = STATE_DIR / "hook.log"
+    if not log_path.is_file():
+        print("No hook log found.")
+        return
+
+    lines = args.lines
+    if args.follow:
+        import subprocess  # noqa: S404
+
+        subprocess.run(["tail", "-f", "-n", str(lines), str(log_path)], check=False)  # noqa: S603, S607
+    else:
+        all_lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+        for line in all_lines[-lines:]:
+            print(line)
+
+
 def cmd_instructions(args):
     """Output skill instructions to stdout."""
     from .instructions_cli import run_instructions
@@ -379,7 +399,7 @@ def cmd_mcp(args):
         print(f"  {base_server_cmd} --palace /path/to/palace")
 
 
-def main():  # noqa: PLR0915
+def main():  # noqa: PLR0915, PLR0914
     parser = argparse.ArgumentParser(
         description="MemPalace — Give your AI a memory. No API key required.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -498,6 +518,20 @@ def main():  # noqa: PLR0915
         choices=["claude-code", "codex"],
         help="Harness type (determines stdin JSON format)",
     )
+    p_hook_logs = hook_sub.add_parser("logs", help="Show hook logs")
+    p_hook_logs.add_argument(
+        "-n",
+        "--lines",
+        type=int,
+        default=50,
+        help="Number of lines to show (default: 50)",
+    )
+    p_hook_logs.add_argument(
+        "-f",
+        "--follow",
+        action="store_true",
+        help="Follow log output (like tail -f)",
+    )
 
     # instructions
     p_instructions = sub.add_parser(
@@ -528,7 +562,10 @@ def main():  # noqa: PLR0915
         if not getattr(args, "hook_action", None):
             p_hook.print_help()
             return
-        cmd_hook(args)
+        if args.hook_action == "logs":
+            cmd_hook_logs(args)
+        else:
+            cmd_hook(args)
 
     def _dispatch_instructions(args):
         name = getattr(args, "instructions_name", None)
