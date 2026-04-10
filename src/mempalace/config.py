@@ -83,7 +83,8 @@ class MempalaceConfig:
         if self._config_file.exists():
             try:
                 with Path(self._config_file).open("r", encoding="utf-8") as f:
-                    self._file_config = json.load(f)
+                    loaded = json.load(f)
+                    self._file_config = loaded if isinstance(loaded, dict) else {}
             except json.JSONDecodeError, OSError:
                 self._file_config = {}
 
