@@ -84,19 +84,30 @@ def _output(data: dict) -> None:
     print(json.dumps(data, ensure_ascii=False))
 
 
-def _maybe_auto_ingest() -> None:
-    """If MEMPAL_DIR is set and exists, run mempalace mine in background."""
+def _maybe_auto_ingest(*, sync: bool = False) -> None:
+    """If MEMPAL_DIR is set and exists, run mempalace mine.
+
+    Args:
+        sync: Run synchronously so the caller (and its statusMessage) stays
+              visible while mining is in progress.
+    """
     mempal_dir = os.environ.get("MEMPAL_DIR", "")
     if mempal_dir and Path(mempal_dir).is_dir():
         try:
             log_path = STATE_DIR / "hook.log"
             with log_path.open("a", encoding="utf-8") as log_f:
-                subprocess.Popen(  # noqa: S603
-                    [sys.executable, "-m", "mempalace", "mine", mempal_dir],
-                    stdout=log_f,
-                    stderr=log_f,
-                )
-        except OSError:
+                cmd = [sys.executable, "-m", "mempalace", "mine", mempal_dir]
+                if sync:
+                    subprocess.run(  # noqa: S603
+                        cmd,
+                        stdout=log_f,
+                        stderr=log_f,
+                        timeout=60,
+                        check=False,
+                    )
+                else:
+                    subprocess.Popen(cmd, stdout=log_f, stderr=log_f)  # noqa: S603
+        except OSError, subprocess.SubprocessError:
             pass
 
 
@@ -118,8 +129,13 @@ def _is_auto_save_enabled() -> bool:
         return True
 
 
-def _mine_transcript(transcript_path: str) -> None:
-    """Mine the Claude Code transcript into the palace in background."""
+def _mine_transcript(transcript_path: str, *, sync: bool = False) -> None:
+    """Mine the Claude Code transcript into the palace.
+
+    Args:
+        sync: Run synchronously so the caller (and its statusMessage) stays
+              visible while mining is in progress.
+    """
     path = Path(transcript_path).expanduser()
     if not path.is_file():
         return
@@ -127,12 +143,26 @@ def _mine_transcript(transcript_path: str) -> None:
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         log_path = STATE_DIR / "hook.log"
         with log_path.open("a", encoding="utf-8") as log_f:
-            subprocess.Popen(  # noqa: S603
-                [sys.executable, "-m", "mempalace", "mine", str(path.parent), "--mode", "convos"],
-                stdout=log_f,
-                stderr=log_f,
-            )
-    except OSError:
+            cmd = [
+                sys.executable,
+                "-m",
+                "mempalace",
+                "mine",
+                str(path.parent),
+                "--mode",
+                "convos",
+            ]
+            if sync:
+                subprocess.run(  # noqa: S603
+                    cmd,
+                    stdout=log_f,
+                    stderr=log_f,
+                    timeout=60,
+                    check=False,
+                )
+            else:
+                subprocess.Popen(cmd, stdout=log_f, stderr=log_f)  # noqa: S603
+    except OSError, subprocess.SubprocessError:
         pass
 
 
@@ -188,7 +218,7 @@ def hook_stop(data: dict, harness: str) -> None:
         _log(f"TRIGGERING SAVE at exchange {exchange_count}")
 
         _maybe_auto_ingest()
-        _mine_transcript(transcript_path)
+        _mine_transcript(transcript_path, sync=True)
 
     _output({})
 
@@ -205,26 +235,6 @@ def hook_session_start(data: dict, harness: str) -> None:
     _output({})
 
 
-def _mine_transcript_sync(transcript_path: str) -> None:
-    """Mine the Claude Code transcript into the palace synchronously."""
-    path = Path(transcript_path).expanduser()
-    if not path.is_file():
-        return
-    try:
-        STATE_DIR.mkdir(parents=True, exist_ok=True)
-        log_path = STATE_DIR / "hook.log"
-        with log_path.open("a", encoding="utf-8") as log_f:
-            subprocess.run(  # noqa: S603
-                [sys.executable, "-m", "mempalace", "mine", str(path.parent), "--mode", "convos"],
-                stdout=log_f,
-                stderr=log_f,
-                timeout=60,
-                check=False,
-            )
-    except OSError, subprocess.SubprocessError:
-        pass
-
-
 def hook_precompact(data: dict, harness: str) -> None:
     """Precompact hook: always block with comprehensive save instruction."""
     parsed = _parse_harness_input(data, harness)
@@ -234,23 +244,10 @@ def hook_precompact(data: dict, harness: str) -> None:
     _log(f"PRE-COMPACT triggered for session {session_id}")
 
     # Auto-ingest synchronously before compaction (so memories land first)
-    mempal_dir = os.environ.get("MEMPAL_DIR", "")
-    if mempal_dir and Path(mempal_dir).is_dir():
-        try:
-            log_path = STATE_DIR / "hook.log"
-            with log_path.open("a", encoding="utf-8") as log_f:
-                subprocess.run(  # noqa: S603
-                    [sys.executable, "-m", "mempalace", "mine", mempal_dir],
-                    stdout=log_f,
-                    stderr=log_f,
-                    timeout=60,
-                    check=False,
-                )
-        except OSError, subprocess.SubprocessError:
-            pass
+    _maybe_auto_ingest(sync=True)
 
     # Mine transcript synchronously before compaction
-    _mine_transcript_sync(transcript_path)
+    _mine_transcript(transcript_path, sync=True)
 
     _output({"decision": "block", "reason": PRECOMPACT_BLOCK_REASON})
 
