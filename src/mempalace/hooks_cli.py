@@ -110,7 +110,10 @@ def _is_auto_save_enabled() -> bool:
             config = json.load(f)
         if not isinstance(config, dict):
             return True
-        return config.get("stop_hook", {}).get("auto_save", True)
+        stop_hook = config.get("stop_hook", {})
+        if not isinstance(stop_hook, dict):
+            return True
+        return stop_hook.get("auto_save", True)
     except json.JSONDecodeError, OSError:
         return True
 
