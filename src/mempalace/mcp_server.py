@@ -393,6 +393,9 @@ def tool_kg_add(subject: str, predicate: str, object: str, valid_from: str | Non
 
 def tool_kg_invalidate(subject: str, predicate: str, object: str, ended: str | None = None):  # noqa: A002
     """Mark a fact as no longer true (set end date)."""
+    subject = sanitize_kg_value(subject, "subject")
+    predicate = sanitize_kg_value(predicate, "predicate")
+    object = sanitize_kg_value(object, "object")  # noqa: A001
     _kg.invalidate(subject, predicate, object, ended=ended)
     with contextlib.suppress(Exception):
         _wal_log("kg_invalidate", {"subject": subject, "predicate": predicate, "object": object, "ended": ended})
@@ -473,6 +476,7 @@ def tool_diary_read(agent_name: str, last_n: int = 10):
     Read an agent's recent diary entries. Returns the last N entries
     in chronological order — the agent's personal journal.
     """
+    agent_name = sanitize_name(agent_name, "agent_name")
     wing = f"wing_{agent_name.lower().replace(' ', '_')}"
     col = _get_collection()
     if not col:
