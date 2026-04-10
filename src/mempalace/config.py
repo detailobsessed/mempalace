@@ -153,6 +153,7 @@ MAX_NAME_LENGTH = 256
 def sanitize_name(value: str, field_name: str = "name") -> str:
     """Validate and sanitize a wing/room/entity name.
 
+    Rejects path-traversal characters (``..``, ``/``, ``\\``).
     Raises ValueError if the name is invalid.
     """
     if not isinstance(value, str) or not value.strip():
@@ -164,6 +165,26 @@ def sanitize_name(value: str, field_name: str = "name") -> str:
         raise ValueError(msg)
     if ".." in value or "/" in value or "\\" in value:
         msg = f"{field_name} contains invalid path characters"
+        raise ValueError(msg)
+    if "\x00" in value:
+        msg = f"{field_name} contains null bytes"
+        raise ValueError(msg)
+    return value
+
+
+def sanitize_kg_value(value: str, field_name: str = "value") -> str:
+    """Validate a knowledge-graph subject/predicate/object.
+
+    Like sanitize_name but without path-traversal restrictions — KG values
+    are stored in SQLite, not used as filesystem paths.
+    Raises ValueError if the value is invalid.
+    """
+    if not isinstance(value, str) or not value.strip():
+        msg = f"{field_name} must be a non-empty string"
+        raise ValueError(msg)
+    value = value.strip()
+    if len(value) > MAX_NAME_LENGTH:
+        msg = f"{field_name} exceeds maximum length of {MAX_NAME_LENGTH} characters"
         raise ValueError(msg)
     if "\x00" in value:
         msg = f"{field_name} contains null bytes"

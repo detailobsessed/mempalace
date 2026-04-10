@@ -31,7 +31,7 @@ from typing import Any
 import chromadb
 
 from . import __version__
-from .config import MempalaceConfig, sanitize_content, sanitize_name
+from .config import MempalaceConfig, sanitize_content, sanitize_kg_value, sanitize_name
 from .knowledge_graph import KnowledgeGraph
 from .palace_graph import find_tunnels, graph_stats, traverse
 from .searcher import search_memories
@@ -68,6 +68,7 @@ def _get_collection(create=False):
         else:
             _collection_cache = client.get_collection(_config.collection_name)
     except Exception:
+        _collection_cache = None
         return None
     else:
         return _collection_cache
@@ -320,7 +321,7 @@ def tool_add_drawer(wing: str, room: str, content: str, source_file: str | None 
         }
 
     now = datetime.now(tz=UTC)
-    drawer_id = f"drawer_{wing}_{room}_{hashlib.sha256((wing + room + content[:100]).encode()).hexdigest()[:24]}"
+    drawer_id = f"drawer_{wing}_{room}_{hashlib.sha256((wing + room + content).encode()).hexdigest()[:24]}"
 
     # Idempotency: skip if already exists
     existing = col.get(ids=[drawer_id])
@@ -381,9 +382,9 @@ def tool_kg_query(entity: str, as_of: str | None = None, direction: str = "both"
 
 def tool_kg_add(subject: str, predicate: str, object: str, valid_from: str | None = None, source_closet: str | None = None):  # noqa: A002
     """Add a relationship to the knowledge graph."""
-    subject = sanitize_name(subject, "subject")
-    predicate = sanitize_name(predicate, "predicate")
-    object = sanitize_name(object, "object")  # noqa: A001
+    subject = sanitize_kg_value(subject, "subject")
+    predicate = sanitize_kg_value(predicate, "predicate")
+    object = sanitize_kg_value(object, "object")  # noqa: A001
     triple_id = _kg.add_triple(subject, predicate, object, valid_from=valid_from, source_closet=source_closet)
     with contextlib.suppress(Exception):
         _wal_log("kg_add", {"subject": subject, "predicate": predicate, "object": object, "valid_from": valid_from})
