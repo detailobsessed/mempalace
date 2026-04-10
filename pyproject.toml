@@ -1,5 +1,5 @@
 [build-system]
-requires = ["uv_build"]
+requires = ["uv_build>=0.6,<0.12"]
 build-backend = "uv_build"
 
 [project]
@@ -280,15 +280,18 @@ watch = "gh run watch"
 
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
-branch = "bleeding"
+version_variables = ["src/mempalace/__init__.py:__version__"]
 build_command = "uv lock --upgrade-package mempalace && uv build"
 allow_zero_version = true
 major_on_zero = false
 commit_message = "chore(release): v{version}"
 tag_format = "v{version}"
 
+[tool.semantic_release.branches.bleeding]
+match = "bleeding"
+prerelease = false
+
 [tool.semantic_release.changelog]
-template_dir = ".github/templates"
 exclude_commit_patterns = [
     "^chore\\(release\\):",
     "^Merge ",
