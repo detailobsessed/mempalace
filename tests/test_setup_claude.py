@@ -4,7 +4,7 @@ import json
 import shutil
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -125,130 +125,6 @@ class TestUnregisterPlugin:
 
 
 # ---------------------------------------------------------------------------
-# _hook_matches_mempalace (legacy)
-# ---------------------------------------------------------------------------
-
-
-class TestHookMatchesMempalace:
-    def test_exact_match(self):
-        assert setup_claude._hook_matches_mempalace("mempal_save_hook.sh", "mempal_save_hook.sh")
-
-    def test_absolute_path(self):
-        assert setup_claude._hook_matches_mempalace(
-            "/home/user/repos/mempalace/hooks/mempal_save_hook.sh",
-            "mempal_save_hook.sh",
-        )
-
-    def test_different_base_dirs(self):
-        assert setup_claude._hook_matches_mempalace(
-            "/home/user/.mempalace/hooks/mempal_save_hook.sh",
-            "mempal_save_hook.sh",
-        )
-
-    def test_no_match_different_script(self):
-        assert not setup_claude._hook_matches_mempalace(
-            "/some/path/other_hook.sh",
-            "mempal_save_hook.sh",
-        )
-
-    def test_no_match_partial_name(self):
-        assert not setup_claude._hook_matches_mempalace(
-            "/some/path/save_hook.sh",
-            "mempal_save_hook.sh",
-        )
-
-    def test_no_match_suffix_embedded(self):
-        assert not setup_claude._hook_matches_mempalace(
-            "/some/path/notmempal_save_hook.sh",
-            "mempal_save_hook.sh",
-        )
-
-
-# ---------------------------------------------------------------------------
-# _remove_old_hooks (legacy)
-# ---------------------------------------------------------------------------
-
-
-class TestRemoveOldHooks:
-    def test_removes_matching_entries(self):
-        entries = [
-            {"hooks": [{"command": "/old/path/mempal_save_hook.sh"}]},
-            {"hooks": [{"command": "/other/tool/hook.sh"}]},
-        ]
-        removed = setup_claude._remove_old_hooks(entries, "mempal_save_hook.sh")
-        assert removed == 1
-        assert len(entries) == 1
-        assert entries[0]["hooks"][0]["command"] == "/other/tool/hook.sh"
-
-    def test_removes_multiple_duplicates(self):
-        entries = [
-            {"hooks": [{"command": "/path/a/mempal_save_hook.sh"}]},
-            {"hooks": [{"command": "/path/b/mempal_save_hook.sh"}]},
-        ]
-        removed = setup_claude._remove_old_hooks(entries, "mempal_save_hook.sh")
-        assert removed == 2
-        assert len(entries) == 0
-
-    def test_no_match_leaves_entries_intact(self):
-        entries = [
-            {"hooks": [{"command": "/some/other_hook.sh"}]},
-        ]
-        removed = setup_claude._remove_old_hooks(entries, "mempal_save_hook.sh")
-        assert removed == 0
-        assert len(entries) == 1
-
-    def test_empty_list(self):
-        entries = []
-        removed = setup_claude._remove_old_hooks(entries, "mempal_save_hook.sh")
-        assert removed == 0
-
-
-# ---------------------------------------------------------------------------
-# remove_hooks (legacy cleanup)
-# ---------------------------------------------------------------------------
-
-
-class TestRemoveHooks:
-    def test_no_settings_file(self, fake_home, capsys):
-        setup_claude.CLAUDE_SETTINGS.unlink(missing_ok=True)
-        setup_claude.remove_hooks()
-
-        out = capsys.readouterr().out
-        assert "No settings.json" in out
-
-    def test_removes_mempalace_hooks(self, fake_home):
-        old_settings = {
-            "hooks": {
-                "Stop": [{"hooks": [{"type": "command", "command": "/old/mempal_save_hook.sh"}]}],
-                "PreCompact": [{"hooks": [{"type": "command", "command": "/old/mempal_precompact_hook.sh"}]}],
-            }
-        }
-        setup_claude.CLAUDE_SETTINGS.write_text(json.dumps(old_settings), encoding="utf-8")
-
-        setup_claude.remove_hooks()
-
-        settings = json.loads(setup_claude.CLAUDE_SETTINGS.read_text(encoding="utf-8"))
-        assert "hooks" not in settings
-
-    def test_preserves_non_mempalace_hooks(self, fake_home):
-        other_settings = {
-            "hooks": {
-                "Stop": [
-                    {"hooks": [{"type": "command", "command": "/other/tool.sh"}]},
-                    {"hooks": [{"type": "command", "command": "/path/mempal_save_hook.sh"}]},
-                ],
-            }
-        }
-        setup_claude.CLAUDE_SETTINGS.write_text(json.dumps(other_settings), encoding="utf-8")
-
-        setup_claude.remove_hooks()
-
-        settings = json.loads(setup_claude.CLAUDE_SETTINGS.read_text(encoding="utf-8"))
-        assert len(settings["hooks"]["Stop"]) == 1
-        assert settings["hooks"]["Stop"][0]["hooks"][0]["command"] == "/other/tool.sh"
-
-
-# ---------------------------------------------------------------------------
 # setup_claude_md
 # ---------------------------------------------------------------------------
 
@@ -309,6 +185,14 @@ class TestRemoveClaudeMd:
         assert "MemPalace" not in result
         assert "# My Config" in result
 
+    def test_no_mempalace_section(self, fake_home, capsys):
+        setup_claude.CLAUDE_MD.write_text("# My Config\n\nNo palace here.\n", encoding="utf-8")
+
+        setup_claude.remove_claude_md()
+
+        out = capsys.readouterr().out
+        assert "No MemPalace section found" in out
+
     def test_roundtrip_install_then_uninstall(self, fake_home):
         setup_claude.CLAUDE_MD.write_text("# My Config\n\nExisting content.\n", encoding="utf-8")
 
@@ -322,48 +206,127 @@ class TestRemoveClaudeMd:
 
 
 # ---------------------------------------------------------------------------
-# Legacy MCP registration
+# _is_mempalace_hook
 # ---------------------------------------------------------------------------
 
 
-class TestRegisterMcp:
-    def test_skips_when_no_claude_cli(self, capsys):
-        with patch.object(shutil, "which", return_value=None):
-            setup_claude.register_mcp("/fake/python")
+class TestIsMempalaceHook:
+    def test_old_style_exact(self):
+        assert setup_claude._is_mempalace_hook("mempal_save_hook.sh")
+
+    def test_old_style_absolute_path(self):
+        assert setup_claude._is_mempalace_hook("/home/user/repos/mempalace/hooks/mempal_save_hook.sh")
+
+    def test_new_style_exact(self):
+        assert setup_claude._is_mempalace_hook("mempal-stop-hook.sh")
+
+    def test_new_style_absolute_path(self):
+        assert setup_claude._is_mempalace_hook("/some/path/mempal-precompact-hook.sh")
+
+    def test_sessionstart_hook(self):
+        assert setup_claude._is_mempalace_hook("/plugins/hooks/mempal-sessionstart-hook.sh")
+
+    def test_bash_prefixed_command(self):
+        assert setup_claude._is_mempalace_hook("bash ${CLAUDE_PLUGIN_ROOT}/hooks/mempal-stop-hook.sh")
+        assert setup_claude._is_mempalace_hook("bash /some/path/mempal-precompact-hook.sh")
+
+    def test_no_match_unrelated(self):
+        assert not setup_claude._is_mempalace_hook("/some/path/other_hook.sh")
+
+    def test_no_match_partial_name(self):
+        assert not setup_claude._is_mempalace_hook("/path/save_hook.sh")
+
+    def test_no_match_suffix_embedded(self):
+        assert not setup_claude._is_mempalace_hook("/path/notmempal-stop-hook.sh")
+
+
+# ---------------------------------------------------------------------------
+# remove_hooks
+# ---------------------------------------------------------------------------
+
+
+class TestRemoveHooks:
+    def test_no_settings_file(self, fake_home, capsys):
+        setup_claude.remove_hooks()
 
         out = capsys.readouterr().out
-        assert "claude CLI not found" in out
+        assert "No settings.json" in out
 
-    def test_skips_when_correct_command_registered(self):
-        python_path = "/tools/mempalace/bin/python"
-        mcp_output = f"mempalace: {python_path} -m mempalace.mcp_server - Connected"
+    def test_removes_old_style_hooks(self, fake_home):
+        settings = {
+            "hooks": {
+                "Stop": [{"hooks": [{"type": "command", "command": "/old/mempal_save_hook.sh"}]}],
+                "PreCompact": [{"hooks": [{"type": "command", "command": "/old/mempal_precompact_hook.sh"}]}],
+            }
+        }
+        setup_claude.CLAUDE_SETTINGS.write_text(json.dumps(settings), encoding="utf-8")
 
-        with (
-            patch.object(shutil, "which", return_value="/usr/bin/claude"),
-            patch("setup_claude.subprocess") as mock_sub,
-        ):
-            mock_sub.run.return_value.stdout = mcp_output
-            mock_sub.run.return_value.returncode = 0
-            setup_claude.register_mcp(python_path)
+        setup_claude.remove_hooks()
 
-        assert mock_sub.run.call_count == 1
+        result = json.loads(setup_claude.CLAUDE_SETTINGS.read_text(encoding="utf-8"))
+        assert "hooks" not in result
 
-    def test_replaces_wrong_command(self):
-        python_path = "/tools/mempalace/bin/python"
-        mcp_output = "mempalace: uv run --with mempalace python -m mempalace.mcp_server"
+    def test_removes_new_style_hooks(self, fake_home):
+        settings = {
+            "hooks": {
+                "Stop": [{"hooks": [{"type": "command", "command": "/plugins/mempal-stop-hook.sh"}]}],
+                "PreCompact": [{"hooks": [{"type": "command", "command": "/plugins/mempal-precompact-hook.sh"}]}],
+                "SessionStart": [{"hooks": [{"type": "command", "command": "/plugins/mempal-sessionstart-hook.sh"}]}],
+            }
+        }
+        setup_claude.CLAUDE_SETTINGS.write_text(json.dumps(settings), encoding="utf-8")
 
-        list_result = MagicMock(stdout=mcp_output, returncode=0)
-        remove_result = MagicMock(stdout="", stderr="", returncode=0)
-        add_result = MagicMock(stdout="", returncode=0)
+        setup_claude.remove_hooks()
 
-        with (
-            patch.object(shutil, "which", return_value="/usr/bin/claude"),
-            patch("setup_claude.subprocess") as mock_sub,
-        ):
-            mock_sub.run.side_effect = [list_result, remove_result, add_result]
-            setup_claude.register_mcp(python_path)
+        result = json.loads(setup_claude.CLAUDE_SETTINGS.read_text(encoding="utf-8"))
+        assert "hooks" not in result
 
-        assert mock_sub.run.call_count == 3
+    def test_preserves_non_mempalace_hooks(self, fake_home):
+        settings = {
+            "hooks": {
+                "Stop": [
+                    {"hooks": [{"type": "command", "command": "/other/tool.sh"}]},
+                    {"hooks": [{"type": "command", "command": "/path/mempal-stop-hook.sh"}]},
+                ],
+            }
+        }
+        setup_claude.CLAUDE_SETTINGS.write_text(json.dumps(settings), encoding="utf-8")
+
+        setup_claude.remove_hooks()
+
+        result = json.loads(setup_claude.CLAUDE_SETTINGS.read_text(encoding="utf-8"))
+        assert len(result["hooks"]["Stop"]) == 1
+        assert result["hooks"]["Stop"][0]["hooks"][0]["command"] == "/other/tool.sh"
+
+    def test_no_mempalace_hooks_skips_write(self, fake_home, capsys):
+        settings = {
+            "hooks": {"PreToolUse": [{"hooks": [{"type": "command", "command": "/gitnexus/hook.cjs"}]}]},
+            "other": "preserved",
+        }
+        setup_claude.CLAUDE_SETTINGS.write_text(json.dumps(settings), encoding="utf-8")
+
+        setup_claude.remove_hooks()
+
+        out = capsys.readouterr().out
+        assert "No mempalace hooks found" in out
+        # File unchanged
+        result = json.loads(setup_claude.CLAUDE_SETTINGS.read_text(encoding="utf-8"))
+        assert result["other"] == "preserved"
+
+    def test_preserves_existing_settings(self, fake_home):
+        settings = {
+            "permissions": {"allow": ["Bash(ls:*)"]},
+            "hooks": {
+                "Stop": [{"hooks": [{"type": "command", "command": "/path/mempal-stop-hook.sh"}]}],
+            },
+        }
+        setup_claude.CLAUDE_SETTINGS.write_text(json.dumps(settings), encoding="utf-8")
+
+        setup_claude.remove_hooks()
+
+        result = json.loads(setup_claude.CLAUDE_SETTINGS.read_text(encoding="utf-8"))
+        assert result["permissions"] == {"allow": ["Bash(ls:*)"]}
+        assert "hooks" not in result
 
 
 # ---------------------------------------------------------------------------
@@ -406,3 +369,39 @@ class TestUninstallUvTool:
         call_args = mock_sub.run.call_args[0][0]
         assert "uninstall" in call_args
         assert "mempalace" in call_args
+
+
+# ---------------------------------------------------------------------------
+# uninstall (orchestrator)
+# ---------------------------------------------------------------------------
+
+
+class TestUninstall:
+    def test_notes_palace_data_when_present(self, fake_home, capsys):
+        palace_dir = fake_home / ".mempalace"
+        palace_dir.mkdir()
+
+        with (
+            patch.object(shutil, "which", return_value=None),
+            patch("setup_claude.Path") as mock_path_cls,
+        ):
+            mock_path_cls.home.return_value = fake_home
+            mock_path_cls.side_effect = Path
+            setup_claude.uninstall()
+
+        out = capsys.readouterr().out
+        assert "Palace data" in out
+        assert "left intact" in out
+        assert "rm -rf ~/.mempalace" in out
+
+    def test_no_note_when_no_palace_data(self, fake_home, capsys):
+        with (
+            patch.object(shutil, "which", return_value=None),
+            patch("setup_claude.Path") as mock_path_cls,
+        ):
+            mock_path_cls.home.return_value = fake_home
+            mock_path_cls.side_effect = Path
+            setup_claude.uninstall()
+
+        out = capsys.readouterr().out
+        assert "Palace data" not in out
