@@ -15,8 +15,6 @@ from mempalace.hooks_cli import (
     _count_human_messages,
     _log,
     _maybe_auto_ingest,
-    _mine_transcript,
-    _notify_statusline,
     _parse_harness_input,
     _sanitize_session_id,
     hook_precompact,
@@ -215,9 +213,8 @@ def test_session_start_passes_through(tmp_path):
     assert result == {}
 
 
-def test_session_start_warns_no_identity(tmp_path):
-    """Missing identity.txt → systemMessage mentions it."""
-    # No identity.txt created in tmp_path (which acts as _CONFIG_DIR)
+def test_session_start_passes_when_project_config_exists(tmp_path):
+    """mempalace.yaml present → no hints, empty output."""
     with patch("mempalace.hooks_cli.Path.cwd", return_value=tmp_path):
         (tmp_path / "mempalace.yaml").write_text("wing: test", encoding="utf-8")
         result = _capture_hook_output(
@@ -225,13 +222,11 @@ def test_session_start_warns_no_identity(tmp_path):
             {"session_id": "test"},
             state_dir=tmp_path,
         )
-    assert "systemMessage" in result
-    assert "identity.txt" in result["systemMessage"]
+    assert result == {}
 
 
 def test_session_start_warns_no_project_config(tmp_path):
     """Missing mempalace.yaml in CWD → systemMessage mentions mempalace init."""
-    (tmp_path / "identity.txt").write_text("I am test", encoding="utf-8")
     empty_dir = tmp_path / "no_config"
     empty_dir.mkdir()
     with patch("mempalace.hooks_cli.Path.cwd", return_value=empty_dir):
@@ -244,8 +239,8 @@ def test_session_start_warns_no_project_config(tmp_path):
     assert "mempalace init" in result["systemMessage"]
 
 
-def test_session_start_warns_both_missing(tmp_path):
-    """Both missing → systemMessage covers both."""
+def test_session_start_warns_no_mempalace_yaml(tmp_path):
+    """No mempalace.yaml or mempal.yaml → systemMessage mentions mempalace init."""
     empty_dir = tmp_path / "no_config"
     empty_dir.mkdir()
     with patch("mempalace.hooks_cli.Path.cwd", return_value=empty_dir):
@@ -255,7 +250,6 @@ def test_session_start_warns_both_missing(tmp_path):
             state_dir=tmp_path,
         )
     assert "systemMessage" in result
-    assert "identity.txt" in result["systemMessage"]
     assert "mempalace init" in result["systemMessage"]
 
 
@@ -270,23 +264,6 @@ def test_precompact_always_blocks(tmp_path):
     )
     assert result["decision"] == "block"
     assert result["reason"] == PRECOMPACT_BLOCK_REASON
-
-
-def test_precompact_mines_transcript_synchronously(tmp_path):
-    """Precompact mines the transcript synchronously (subprocess.run, not Popen)."""
-    transcript = tmp_path / "t.jsonl"
-    transcript.write_text('{"message": {"role": "user", "content": "hello"}}', encoding="utf-8")
-    with patch("mempalace.hooks_cli.subprocess.run") as mock_run:
-        result = _capture_hook_output(
-            hook_precompact,
-            {"session_id": "test", "transcript_path": str(transcript)},
-            state_dir=tmp_path,
-        )
-    assert result["decision"] == "block"
-    # Verify convo mining was called synchronously
-    calls = mock_run.call_args_list
-    convo_mine_calls = [c for c in calls if "--mode" in c[0][0] and "convos" in c[0][0]]
-    assert len(convo_mine_calls) == 1
 
 
 # --- _log ---
@@ -333,80 +310,6 @@ def test_maybe_auto_ingest_oserror(tmp_path):
     with patch.dict("os.environ", {"MEMPAL_DIR": str(mempal_dir)}), patch("mempalace.hooks_cli.STATE_DIR", tmp_path):
         with patch("mempalace.hooks_cli.subprocess.Popen", side_effect=OSError("fail")):
             _maybe_auto_ingest()
-
-
-# --- _mine_transcript ---
-
-
-def test_mine_transcript_spawns_convo_mining(tmp_path):
-    """Given a valid transcript, spawns background convo mining on its parent dir."""
-    transcript = tmp_path / "t.jsonl"
-    transcript.write_text('{"message": {"role": "user", "content": "hello"}}', encoding="utf-8")
-    with patch("mempalace.hooks_cli.STATE_DIR", tmp_path):
-        with patch("mempalace.hooks_cli.subprocess.Popen") as mock_popen:
-            _mine_transcript(str(transcript))
-            mock_popen.assert_called_once()
-            call_args = mock_popen.call_args
-            cmd = call_args[0][0] if call_args[0] else call_args[1].get("args", [])
-            assert "--mode" in cmd
-            assert "convos" in cmd
-            assert str(tmp_path) in cmd
-
-
-def test_mine_transcript_nonexistent_path_silent(tmp_path):
-    """Nonexistent transcript path returns silently — no crash, no subprocess."""
-    with patch("mempalace.hooks_cli.STATE_DIR", tmp_path):
-        with patch("mempalace.hooks_cli.subprocess.Popen") as mock_popen:
-            _mine_transcript("/nonexistent/transcript.jsonl")
-            mock_popen.assert_not_called()
-
-
-def test_mine_transcript_oserror_silenced(tmp_path):
-    """OSError during subprocess spawn is silenced."""
-    transcript = tmp_path / "t.jsonl"
-    transcript.write_text('{"message": {"role": "user", "content": "hello"}}', encoding="utf-8")
-    with patch("mempalace.hooks_cli.STATE_DIR", tmp_path):
-        with patch("mempalace.hooks_cli.subprocess.Popen", side_effect=OSError("fail")):
-            _mine_transcript(str(transcript))
-
-
-# --- stop hook config opt-out ---
-
-
-def test_stop_hook_skips_when_auto_save_disabled(tmp_path):
-    """When config has stop_hook.auto_save=false, hook returns {} without blocking."""
-    transcript = tmp_path / "t.jsonl"
-    _write_transcript(
-        transcript,
-        [{"message": {"role": "user", "content": f"msg {i}"}} for i in range(SAVE_INTERVAL)],
-    )
-    # Write config.json into tmp_path which _capture_hook_output patches as _CONFIG_DIR
-    (tmp_path / "config.json").write_text(json.dumps({"stop_hook": {"auto_save": False}}), encoding="utf-8")
-    with patch("mempalace.hooks_cli._maybe_auto_ingest") as mock_ingest:
-        result = _capture_hook_output(
-            hook_stop,
-            {"session_id": "test", "stop_hook_active": False, "transcript_path": str(transcript)},
-            state_dir=tmp_path,
-        )
-    assert result == {}
-    mock_ingest.assert_not_called()
-
-
-def test_stop_hook_blocks_when_auto_save_enabled(tmp_path):
-    """When config has stop_hook.auto_save=true (default), hook blocks."""
-    transcript = tmp_path / "t.jsonl"
-    _write_transcript(
-        transcript,
-        [{"message": {"role": "user", "content": f"msg {i}"}} for i in range(SAVE_INTERVAL)],
-    )
-    with patch("mempalace.hooks_cli._maybe_auto_ingest") as mock_ingest:
-        result = _capture_hook_output(
-            hook_stop,
-            {"session_id": "test", "stop_hook_active": False, "transcript_path": str(transcript)},
-            state_dir=tmp_path,
-        )
-    assert result["decision"] == "block"
-    mock_ingest.assert_called_once()
 
 
 # --- _parse_harness_input ---
@@ -571,47 +474,3 @@ def test_run_hook_invalid_json(tmp_path):
     mock_output.assert_called_once()
     # Should not crash; will emit warnings since tmp_path has no identity.txt
     assert mock_output.call_args[0][0] is not None
-
-
-# --- _notify_statusline ---
-
-
-def test_notify_statusline_writes_file(tmp_path):
-    """Writes notification message to the statusline notify file."""
-    notify_path = tmp_path / "claude-statusline-notify"
-    with patch("mempalace.hooks_cli._NOTIFY_PATH", notify_path):
-        _notify_statusline("memories saved")
-    assert notify_path.read_text(encoding="utf-8") == "memories saved"
-
-
-def test_notify_statusline_oserror_silenced():
-    """OSError on write is silenced (e.g. /tmp not writable)."""
-    with patch("mempalace.hooks_cli._NOTIFY_PATH", Path("/nonexistent/dir/file")):
-        _notify_statusline("test")  # should not raise
-
-
-def test_stop_hook_writes_statusline_notification(tmp_path):
-    """Stop hook notifies statusline when blocking."""
-    transcript = tmp_path / "t.jsonl"
-    _write_transcript(
-        transcript,
-        [{"message": {"role": "user", "content": f"msg {i}"}} for i in range(SAVE_INTERVAL)],
-    )
-    with patch("mempalace.hooks_cli._notify_statusline") as mock_notify:
-        _capture_hook_output(
-            hook_stop,
-            {"session_id": "test", "stop_hook_active": False, "transcript_path": str(transcript)},
-            state_dir=tmp_path,
-        )
-    mock_notify.assert_called_once()
-
-
-def test_precompact_writes_statusline_notification(tmp_path):
-    """Precompact hook notifies statusline."""
-    with patch("mempalace.hooks_cli._notify_statusline") as mock_notify:
-        _capture_hook_output(
-            hook_precompact,
-            {"session_id": "test", "transcript_path": "/nonexistent/t.jsonl"},
-            state_dir=tmp_path,
-        )
-    mock_notify.assert_called_once()
