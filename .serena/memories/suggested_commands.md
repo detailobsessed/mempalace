@@ -14,7 +14,18 @@ uv run pytest tests/test_file.py -v    # Single file
 uv run pytest -k "pattern" -v          # Pattern match
 ```
 
+## Git workflow (git-spice)
+
+```bash
+spice branch create <name> -m "<msg>"  # Create branch + commit (changes first!)
+spice commit create -a -m "<msg>"      # Commit on current branch
+spice stack submit                     # Push all branches in stack
+spice stack submit --update-only       # Push without creating new PRs
+spice stack restack                    # Rebase stack on trunk
+spice ls                               # Show branch stack
+```
+
 ## System commands (Darwin)
 
 - `git`, `ls`, `grep`, `find` - standard unix
-- `which`, `uv`, `poe` available on PATH
+- `which`, `uv`, `poe`, `spice` available on PATH

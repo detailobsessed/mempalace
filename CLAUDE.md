@@ -18,7 +18,7 @@ Key concepts:
 
 ## Project Structure
 
-Source code lives in `src/mempalace/` (src layout). Tests in `tests/`. Uses `uv` for package management, `ruff` for linting/formatting, `ty` for type checking, `pytest` for testing, and `poethepoet` (poe) as task runner.
+Source code lives in `src/mempalace/` (src layout). Tests in `tests/`. Requires **Python ≥3.14** (uses PEP 758 syntax). Uses `uv` for package management, `ruff` for linting/formatting, `ty` for type checking, `pytest` for testing, and `poethepoet` (poe) as task runner.
 
 ## Architecture
 
@@ -80,6 +80,23 @@ mempalace hook run --hook <name> --harness <harness>  # Run a hook handler (sess
 mempalace hook logs [-n N] [-f]         # Show hook execution logs (default: 50 lines, -f to follow)
 mempalace instructions <name>           # Output skill instructions to stdout
 mempalace mcp                           # Show MCP setup command for your AI client
+```
+
+## Gotchas
+
+- **PEP 758 syntax**: `except ValueError, TypeError:` is valid Python 3.14 — do NOT parenthesize
+- **chromadb in tests**: Always `.close()` a `PersistentClient` after use; unclosed clients leak sqlite connections
+- **Coverage threshold**: Tests must maintain ≥85% coverage (`poe test-cov` to verify)
+- **Conventional commits**: All commits must follow conventional format (`feat:`, `fix:`, `chore:`, etc.) — enforced by pre-commit hook
+
+## Git Workflow
+
+Uses `git-spice` for stacked branches. Make changes first, then:
+
+```bash
+git add -A && spice branch create <name> -m "<message>"  # Create branch + commit
+spice stack submit                                        # Push stack
+spice stack restack                                       # Rebase on bleeding
 ```
 
 ## Configuration
