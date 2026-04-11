@@ -39,6 +39,7 @@ def palace(tmp_path):
             _meta("myproject", "backend", "db.txt", "2026-01-04"),
         ],
     )
+    client.close()
     return palace_path
 
 
@@ -65,6 +66,7 @@ def palace_with_tunnels(tmp_path):
             _meta("myproject", "devops", "e.txt", "2026-01-05", hall="infra"),
         ],
     )
+    client.close()
     return palace_path
 
 

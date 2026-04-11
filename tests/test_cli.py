@@ -34,6 +34,7 @@ def _make_palace(tmp_path, drawers=None):
             documents=[d["document"] for d in drawers],
             metadatas=[d["metadata"] for d in drawers],
         )
+    client.close()
     return palace_path
 
 
@@ -290,6 +291,7 @@ class TestCmdMine:
         col = client.get_collection("mempalace_drawers")
         count = col.count()
         assert count > 0
+        client.close()
 
     def test_mine_with_wing_override(self, tmp_path, capsys):
         project_dir = self._make_project(tmp_path)
@@ -397,6 +399,7 @@ class TestCmdCompress:
         client = chromadb.PersistentClient(path=palace_path)
         comp_col = client.get_collection("mempalace_compressed")
         assert comp_col.count() == 2
+        client.close()
 
     def test_compress_with_wing_filter(self, tmp_path, capsys):
         drawers = _default_drawers(3)

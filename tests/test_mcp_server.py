@@ -26,7 +26,11 @@ def mcp_palace(tmp_path, monkeypatch):
     monkeypatch.setattr(mcp_server, "_client_cache", None)
     monkeypatch.setattr(mcp_server, "_collection_cache", None)
 
-    return palace_path
+    yield palace_path
+
+    # Close any cached client created during the test
+    if mcp_server._client_cache is not None:
+        mcp_server._client_cache.close()
 
 
 # ---------------------------------------------------------------------------
@@ -46,7 +50,7 @@ def _seed_drawers(palace_path, items):
             documents=[item["doc"]],
             metadatas=[item["meta"]],
         )
-    return col
+    client.close()
 
 
 # ============================= NO-PALACE ERROR =============================
@@ -862,6 +866,7 @@ class TestHealthCheck:
         # Create empty collection
         client = chromadb.PersistentClient(path=mcp_palace)
         client.get_or_create_collection("mempalace_drawers")
+        client.close()
         mcp_server._collection_cache = None
         mcp_server._client_cache = None
         warnings = mcp_server._health_check()
