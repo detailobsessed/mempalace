@@ -50,6 +50,18 @@ MemPalace registers three hooks that run automatically:
 
 Set the `MEMPAL_DIR` environment variable to a directory path to automatically run `mempalace mine` on that directory during each save trigger.
 
+## Local Development
+
+When developing the plugin locally, use `--plugin-dir` to load it from your working tree instead of the installed cache:
+
+```bash
+claude --plugin-dir /path/to/mempalace/.claude-plugin
+```
+
+This takes precedence over the installed marketplace version. Changes are picked up on next session start. To pick up changes mid-session, run `/reload-plugins`.
+
+The plugin version in `plugin.json` is only bumped on intentional plugin releases — not on every library version bump.
+
 ## MCP Server
 
 The plugin automatically configures a local MCP server with 19 tools for storing, searching, and managing memories. No manual MCP setup is required.
