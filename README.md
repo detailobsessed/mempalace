@@ -41,12 +41,10 @@ This fork is a learning playground where we:
 
 ### Behavioral changes from upstream
 
-- **Synchronous hook mining** — Stop hook runs transcript mining synchronously so Claude Code's `statusMessage` spinner is visible during saves (upstream used fire-and-forget background processes)
-- **Auto-save opt-out** — Stop hook auto-save can be disabled via `~/.mempalace/config.json` (`stop_hook.auto_save: false`)
 - **Hook log viewer** — `mempalace hook logs [-n N] [-f]` command to tail hook execution logs
 - **MCP health checks** — `mempalace_status` returns a `warnings` array with actionable setup guidance (missing palace, identity, project config, empty palace)
-- **SessionStart health check** — SessionStart hook checks for missing `identity.txt` and `mempalace.yaml`, surfacing setup hints at the start of each session
-- **Code quality** — extracted helpers, defensive config loading, hardened input validation
+- **SessionStart health check** — SessionStart hook checks for missing `mempalace.yaml`, surfacing setup hints at the start of each session
+- **Code quality** — compact JSON hook output (required by Claude Code), extracted helpers, hardened input validation
 
 ---
 

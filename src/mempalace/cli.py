@@ -13,9 +13,15 @@ Commands:
     mempalace mine <dir>                  Mine project files (default)
     mempalace mine <dir> --mode convos    Mine conversation exports
     mempalace search "query"              Find anything, exact words
+    mempalace compress --wing <name>      Compress drawers with AAAK Dialect
     mempalace wake-up                     Show L0 + L1 wake-up context
     mempalace wake-up --wing my_app       Wake-up for a specific project
     mempalace status                      Show what's been filed
+    mempalace hook run --hook <name>      Run hook logic (session-start, stop, precompact)
+    mempalace hook logs                   Show hook execution logs
+    mempalace instructions <name>         Output skill instructions to stdout
+    mempalace mcp                         Show MCP setup command
+    mempalace repair                      Rebuild palace vector index
 
 Examples:
     mempalace init ~/projects/my_app

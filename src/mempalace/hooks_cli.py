@@ -21,10 +21,19 @@ SAVE_INTERVAL = 15
 _CONFIG_DIR = Path.home() / ".mempalace"
 STATE_DIR = _CONFIG_DIR / "hook_state"
 
+STOP_BLOCK_REASON = (
+    "AUTO-SAVE checkpoint. Save key topics, decisions, quotes, and code "
+    "from this session to your memory system. Organize into appropriate "
+    "categories. Use verbatim quotes where possible. Continue conversation "
+    "after saving."
+)
+
 PRECOMPACT_BLOCK_REASON = (
-    "COMPACTION IMMINENT \u2014 session transcript has been automatically "
-    "mined into the palace. You may continue; detailed context from earlier "
-    "messages will be compacted."
+    "COMPACTION IMMINENT. Save ALL topics, decisions, quotes, code, and "
+    "important context from this session to your memory system. Be thorough "
+    "\u2014 after compaction, detailed context will be lost. Organize into "
+    "appropriate categories. Use verbatim quotes where possible. Save "
+    "everything, then allow compaction to proceed."
 )
 
 
@@ -84,12 +93,12 @@ def _output(data: dict) -> None:
     print(json.dumps(data, ensure_ascii=False))
 
 
-def _maybe_auto_ingest(*, sync: bool = False) -> None:
+def _maybe_auto_ingest(*, blocking: bool = False) -> None:
     """If MEMPAL_DIR is set and exists, run mempalace mine.
 
     Args:
-        sync: Run synchronously so the caller (and its statusMessage) stays
-              visible while mining is in progress.
+        blocking: If True, wait for mining to finish (used by precompact
+                  so memories land before compaction).
     """
     mempal_dir = os.environ.get("MEMPAL_DIR", "")
     if mempal_dir and Path(mempal_dir).is_dir():
@@ -97,7 +106,7 @@ def _maybe_auto_ingest(*, sync: bool = False) -> None:
             log_path = STATE_DIR / "hook.log"
             with log_path.open("a", encoding="utf-8") as log_f:
                 cmd = [sys.executable, "-m", "mempalace", "mine", mempal_dir]
-                if sync:
+                if blocking:
                     subprocess.run(  # noqa: S603
                         cmd,
                         stdout=log_f,
@@ -109,61 +118,6 @@ def _maybe_auto_ingest(*, sync: bool = False) -> None:
                     subprocess.Popen(cmd, stdout=log_f, stderr=log_f)  # noqa: S603
         except OSError, subprocess.SubprocessError:
             pass
-
-
-def _is_auto_save_enabled() -> bool:
-    """Check if stop hook auto-save is enabled in config (default: True)."""
-    config_file = _CONFIG_DIR / "config.json"
-    if not config_file.is_file():
-        return True
-    try:
-        with config_file.open(encoding="utf-8") as f:
-            config = json.load(f)
-        if not isinstance(config, dict):
-            return True
-        stop_hook = config.get("stop_hook", {})
-        if not isinstance(stop_hook, dict):
-            return True
-        return stop_hook.get("auto_save", True)
-    except json.JSONDecodeError, OSError:
-        return True
-
-
-def _mine_transcript(transcript_path: str, *, sync: bool = False) -> None:
-    """Mine the Claude Code transcript into the palace.
-
-    Args:
-        sync: Run synchronously so the caller (and its statusMessage) stays
-              visible while mining is in progress.
-    """
-    path = Path(transcript_path).expanduser()
-    if not path.is_file():
-        return
-    try:
-        STATE_DIR.mkdir(parents=True, exist_ok=True)
-        log_path = STATE_DIR / "hook.log"
-        with log_path.open("a", encoding="utf-8") as log_f:
-            cmd = [
-                sys.executable,
-                "-m",
-                "mempalace",
-                "mine",
-                str(path.parent),
-                "--mode",
-                "convos",
-            ]
-            if sync:
-                subprocess.run(  # noqa: S603
-                    cmd,
-                    stdout=log_f,
-                    stderr=log_f,
-                    timeout=60,
-                    check=False,
-                )
-            else:
-                subprocess.Popen(cmd, stdout=log_f, stderr=log_f)  # noqa: S603
-    except OSError, subprocess.SubprocessError:
-        pass
 
 
 SUPPORTED_HARNESSES = {"claude-code", "codex"}
@@ -210,7 +164,7 @@ def hook_stop(data: dict, harness: str) -> None:
 
     _log(f"Session {session_id}: {exchange_count} exchanges, {since_last} since last save")
 
-    if since_last >= SAVE_INTERVAL and exchange_count > 0 and _is_auto_save_enabled():
+    if since_last >= SAVE_INTERVAL and exchange_count > 0:
         # Update last save point
         with contextlib.suppress(OSError):
             last_save_file.write_text(str(exchange_count), encoding="utf-8")
@@ -218,13 +172,14 @@ def hook_stop(data: dict, harness: str) -> None:
         _log(f"TRIGGERING SAVE at exchange {exchange_count}")
 
         _maybe_auto_ingest()
-        _mine_transcript(transcript_path, sync=True)
 
-    _output({})
+        _output({"decision": "block", "reason": STOP_BLOCK_REASON})
+    else:
+        _output({})
 
 
 def hook_session_start(data: dict, harness: str) -> None:
-    """Session start hook: initialize session tracking + surface setup warnings."""
+    """Session start hook: initialize session tracking state."""
     parsed = _parse_harness_input(data, harness)
     session_id = parsed["session_id"]
 
@@ -232,34 +187,21 @@ def hook_session_start(data: dict, harness: str) -> None:
 
     STATE_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Lightweight file-based health checks (no chromadb import)
-    hints = []
-    if not (_CONFIG_DIR / "identity.txt").exists():
-        hints.append("No ~/.mempalace/identity.txt found — Layer 0 (identity) is empty. Create it with a short description of yourself.")
-    cwd = Path.cwd()
-    if not (cwd / "mempalace.yaml").exists() and not (cwd / "mempal.yaml").exists():
-        hints.append("No mempalace.yaml in this project — files won't be routed to rooms. Run: mempalace init .")
-
-    if hints:
-        _output({"systemMessage": "MemPalace setup hints:\n- " + "\n- ".join(hints)})
-    else:
-        _output({})
+    # Pass through — no blocking on session start
+    _output({})
 
 
 def hook_precompact(data: dict, harness: str) -> None:
     """Precompact hook: always block with comprehensive save instruction."""
     parsed = _parse_harness_input(data, harness)
     session_id = parsed["session_id"]
-    transcript_path = parsed["transcript_path"]
 
     _log(f"PRE-COMPACT triggered for session {session_id}")
 
     # Auto-ingest synchronously before compaction (so memories land first)
-    _maybe_auto_ingest(sync=True)
+    _maybe_auto_ingest(blocking=True)
 
-    # Mine transcript synchronously before compaction
-    _mine_transcript(transcript_path, sync=True)
-
+    # Always block — compaction = save everything
     _output({"decision": "block", "reason": PRECOMPACT_BLOCK_REASON})
 
 
@@ -267,7 +209,7 @@ def run_hook(hook_name: str, harness: str) -> None:
     """Main entry point: read stdin JSON, dispatch to hook handler."""
     try:
         data = json.load(sys.stdin)
-    except json.JSONDecodeError, EOFError:
+    except json.JSONDecodeError:
         _log("WARNING: Failed to parse stdin JSON, proceeding with empty data")
         data = {}
 

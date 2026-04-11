@@ -19,7 +19,7 @@ This is an experimental fork of [milla-jovovich/mempalace](https://github.com/mi
 - `uv` is the package manager (`uv run`, `uv sync`, `uv tool install`). Not pip.
 - `poe` (poethepoet) is the task runner (`poe test`, `poe check`, `poe lint`).
 - Hook scripts use `mempalace` (not `python3 -m mempalace`) because we install via `uv tool`.
-- Stop hook returns allow (`{}`), not block — but transcript mining runs synchronously when a save triggers (every 15 messages) so Claude Code's `statusMessage` spinner stays visible. Auto-ingest (`MEMPAL_DIR`) stays background since it's secondary.
+- Stop hook blocks every 15 messages with an auto-save prompt. Auto-ingest (`MEMPAL_DIR`) runs in the background.
 
 ## Ignore
 
@@ -32,4 +32,4 @@ This is an experimental fork of [milla-jovovich/mempalace](https://github.com/mi
 
 - Precompact hook runs `subprocess.run` with `timeout=60` for MEMPAL_DIR mining. This is the maximum blocking time before the hook returns.
 - ChromaDB `PersistentClient` is cached at module level in `mcp_server.py`. Do not create new clients per request.
-- Stop hook's `_mine_transcript(sync=True)` blocks for 1-5s typically. `_maybe_auto_ingest()` stays async (Popen) — this is intentionally asymmetric: transcript mining is the essential save, auto-ingest is secondary. No race condition since they write to different wings.
+- Stop hook's `_maybe_auto_ingest()` stays async (Popen) — fire-and-forget background mining of `MEMPAL_DIR`.
