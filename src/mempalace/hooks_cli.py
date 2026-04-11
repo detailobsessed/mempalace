@@ -179,7 +179,7 @@ def hook_stop(data: dict, harness: str) -> None:
 
 
 def hook_session_start(data: dict, harness: str) -> None:
-    """Session start hook: initialize session tracking + surface setup warnings."""
+    """Session start hook: initialize session tracking state."""
     parsed = _parse_harness_input(data, harness)
     session_id = parsed["session_id"]
 
@@ -187,16 +187,8 @@ def hook_session_start(data: dict, harness: str) -> None:
 
     STATE_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Lightweight file-based health checks (no chromadb import)
-    hints = []
-    cwd = Path.cwd()
-    if not (cwd / "mempalace.yaml").exists() and not (cwd / "mempal.yaml").exists():
-        hints.append("No mempalace.yaml in this project — files won't be routed to rooms. Run: mempalace init .")
-
-    if hints:
-        _output({"systemMessage": "MemPalace setup hints:\n- " + "\n- ".join(hints)})
-    else:
-        _output({})
+    # Pass through — no blocking on session start
+    _output({})
 
 
 def hook_precompact(data: dict, harness: str) -> None:
@@ -217,7 +209,7 @@ def run_hook(hook_name: str, harness: str) -> None:
     """Main entry point: read stdin JSON, dispatch to hook handler."""
     try:
         data = json.load(sys.stdin)
-    except json.JSONDecodeError, EOFError:
+    except json.JSONDecodeError:
         _log("WARNING: Failed to parse stdin JSON, proceeding with empty data")
         data = {}
 

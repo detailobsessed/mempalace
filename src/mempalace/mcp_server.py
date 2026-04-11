@@ -129,24 +129,6 @@ def _health_check():
             "fix": "mempalace mine .",
         })
 
-    identity_path = _config._config_dir / "identity.txt"
-    if not identity_path.exists():
-        warnings.append({
-            "level": "warning",
-            "check": "no_identity",
-            "message": "No identity.txt found. Layer 0 (identity) is empty on wake-up.",
-            "fix": "Create ~/.mempalace/identity.txt with a short description of yourself",
-        })
-
-    cwd = Path.cwd()
-    if not (cwd / "mempalace.yaml").exists() and not (cwd / "mempal.yaml").exists():
-        warnings.append({
-            "level": "info",
-            "check": "no_project_config",
-            "message": "No mempalace.yaml in current directory. Project files won't be routed to rooms.",
-            "fix": "mempalace init .",
-        })
-
     return warnings
 
 

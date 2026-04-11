@@ -201,56 +201,13 @@ def test_stop_hook_tracks_save_point(tmp_path):
 
 
 def test_session_start_passes_through(tmp_path):
-    """No warnings when identity.txt exists and mempalace.yaml in CWD."""
-    (tmp_path / "identity.txt").write_text("I am test", encoding="utf-8")
-    with patch("mempalace.hooks_cli.Path.cwd", return_value=tmp_path):
-        (tmp_path / "mempalace.yaml").write_text("wing: test", encoding="utf-8")
-        result = _capture_hook_output(
-            hook_session_start,
-            {"session_id": "test"},
-            state_dir=tmp_path,
-        )
+    """Session start always passes through without blocking."""
+    result = _capture_hook_output(
+        hook_session_start,
+        {"session_id": "test"},
+        state_dir=tmp_path,
+    )
     assert result == {}
-
-
-def test_session_start_passes_when_project_config_exists(tmp_path):
-    """mempalace.yaml present → no hints, empty output."""
-    with patch("mempalace.hooks_cli.Path.cwd", return_value=tmp_path):
-        (tmp_path / "mempalace.yaml").write_text("wing: test", encoding="utf-8")
-        result = _capture_hook_output(
-            hook_session_start,
-            {"session_id": "test"},
-            state_dir=tmp_path,
-        )
-    assert result == {}
-
-
-def test_session_start_warns_no_project_config(tmp_path):
-    """Missing mempalace.yaml in CWD → systemMessage mentions mempalace init."""
-    empty_dir = tmp_path / "no_config"
-    empty_dir.mkdir()
-    with patch("mempalace.hooks_cli.Path.cwd", return_value=empty_dir):
-        result = _capture_hook_output(
-            hook_session_start,
-            {"session_id": "test"},
-            state_dir=tmp_path,
-        )
-    assert "systemMessage" in result
-    assert "mempalace init" in result["systemMessage"]
-
-
-def test_session_start_warns_no_mempalace_yaml(tmp_path):
-    """No mempalace.yaml or mempal.yaml → systemMessage mentions mempalace init."""
-    empty_dir = tmp_path / "no_config"
-    empty_dir.mkdir()
-    with patch("mempalace.hooks_cli.Path.cwd", return_value=empty_dir):
-        result = _capture_hook_output(
-            hook_session_start,
-            {"session_id": "test"},
-            state_dir=tmp_path,
-        )
-    assert "systemMessage" in result
-    assert "mempalace init" in result["systemMessage"]
 
 
 # --- hook_precompact ---
@@ -424,10 +381,7 @@ def test_run_hook_dispatches_session_start(tmp_path):
     ):
         with patch("mempalace.hooks_cli._output") as mock_output:
             run_hook("session-start", "claude-code")
-    mock_output.assert_called_once()
-    result = mock_output.call_args[0][0]
-    # Without identity.txt or mempalace.yaml, expect warnings
-    assert "systemMessage" in result
+    mock_output.assert_called_once_with({})
 
 
 def test_run_hook_dispatches_stop(tmp_path):
@@ -471,6 +425,4 @@ def test_run_hook_invalid_json(tmp_path):
     ):
         with patch("mempalace.hooks_cli._output") as mock_output:
             run_hook("session-start", "claude-code")
-    mock_output.assert_called_once()
-    # Should not crash; will emit warnings since tmp_path has no identity.txt
-    assert mock_output.call_args[0][0] is not None
+    mock_output.assert_called_once_with({})

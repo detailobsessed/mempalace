@@ -855,26 +855,6 @@ class TestHealthCheck:
         critical = [w for w in warnings if w["check"] == "no_palace"]
         assert critical[0]["level"] == "critical"
 
-    def test_no_identity_warning(self, mcp_palace, tmp_path):
-        """Palace exists but no identity.txt → warning."""
-        _seed_drawers(mcp_palace, [{"id": "d1", "doc": "hello", "meta": {"wing": "w", "room": "r"}}])
-        # Reset collection cache so it picks up the seeded data
-        mcp_server._collection_cache = None
-        warnings = mcp_server._health_check()
-        checks = {w["check"] for w in warnings}
-        assert "no_identity" in checks
-        assert "no_palace" not in checks
-
-    def test_no_project_config_warning(self, mcp_palace, tmp_path, monkeypatch):
-        """No mempalace.yaml in CWD → info warning."""
-        _seed_drawers(mcp_palace, [{"id": "d1", "doc": "hello", "meta": {"wing": "w", "room": "r"}}])
-        mcp_server._collection_cache = None
-        # CWD is tmp_path which has no mempalace.yaml
-        monkeypatch.chdir(tmp_path)
-        warnings = mcp_server._health_check()
-        checks = {w["check"] for w in warnings}
-        assert "no_project_config" in checks
-
     def test_empty_palace_warning(self, mcp_palace, monkeypatch):
         """Palace exists but empty → warning."""
         import chromadb
