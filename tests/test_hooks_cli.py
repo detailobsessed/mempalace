@@ -11,10 +11,12 @@ import pytest
 from mempalace.hooks_cli import (
     PRECOMPACT_BLOCK_REASON,
     SAVE_INTERVAL,
+    STOP_BLOCK_REASON,
     _count_human_messages,
     _log,
     _maybe_auto_ingest,
     _mine_transcript,
+    _notify_statusline,
     _parse_harness_input,
     _sanitize_session_id,
     hook_precompact,
@@ -159,21 +161,22 @@ def test_stop_hook_passthrough_below_interval(tmp_path):
     assert result == {}
 
 
-def test_stop_hook_allows_at_interval_and_mines(tmp_path):
-    """At save interval, hook returns allow (not block) and mines transcript in background."""
+def test_stop_hook_blocks_at_interval_and_ingests(tmp_path):
+    """At save interval, hook blocks with STOP_BLOCK_REASON and runs auto-ingest."""
     transcript = tmp_path / "t.jsonl"
     _write_transcript(
         transcript,
         [{"message": {"role": "user", "content": f"msg {i}"}} for i in range(SAVE_INTERVAL)],
     )
-    with patch("mempalace.hooks_cli._mine_transcript") as mock_mine:
+    with patch("mempalace.hooks_cli._maybe_auto_ingest") as mock_ingest:
         result = _capture_hook_output(
             hook_stop,
             {"session_id": "test", "stop_hook_active": False, "transcript_path": str(transcript)},
             state_dir=tmp_path,
         )
-    assert result == {}
-    mock_mine.assert_called_once_with(str(transcript), sync=True)
+    assert result["decision"] == "block"
+    assert result["reason"] == STOP_BLOCK_REASON
+    mock_ingest.assert_called_once()
 
 
 def test_stop_hook_tracks_save_point(tmp_path):
@@ -184,16 +187,16 @@ def test_stop_hook_tracks_save_point(tmp_path):
     )
     data = {"session_id": "test", "stop_hook_active": False, "transcript_path": str(transcript)}
 
-    # First call mines and allows
-    with patch("mempalace.hooks_cli._mine_transcript"):
+    # First call blocks and ingests
+    with patch("mempalace.hooks_cli._maybe_auto_ingest"):
         result = _capture_hook_output(hook_stop, data, state_dir=tmp_path)
-    assert result == {}
+    assert result["decision"] == "block"
 
-    # Second call with same count passes through (already saved, no re-mine)
-    with patch("mempalace.hooks_cli._mine_transcript") as mock_mine:
+    # Second call with same count passes through (already saved)
+    with patch("mempalace.hooks_cli._maybe_auto_ingest") as mock_ingest:
         result = _capture_hook_output(hook_stop, data, state_dir=tmp_path)
     assert result == {}
-    mock_mine.assert_not_called()
+    mock_ingest.assert_not_called()
 
 
 # --- hook_session_start ---
@@ -370,8 +373,8 @@ def test_mine_transcript_oserror_silenced(tmp_path):
 # --- stop hook config opt-out ---
 
 
-def test_stop_hook_skips_mining_when_auto_save_disabled(tmp_path):
-    """When config has stop_hook.auto_save=false, hook returns {} without mining."""
+def test_stop_hook_skips_when_auto_save_disabled(tmp_path):
+    """When config has stop_hook.auto_save=false, hook returns {} without blocking."""
     transcript = tmp_path / "t.jsonl"
     _write_transcript(
         transcript,
@@ -379,31 +382,31 @@ def test_stop_hook_skips_mining_when_auto_save_disabled(tmp_path):
     )
     # Write config.json into tmp_path which _capture_hook_output patches as _CONFIG_DIR
     (tmp_path / "config.json").write_text(json.dumps({"stop_hook": {"auto_save": False}}), encoding="utf-8")
-    with patch("mempalace.hooks_cli._mine_transcript") as mock_mine:
+    with patch("mempalace.hooks_cli._maybe_auto_ingest") as mock_ingest:
         result = _capture_hook_output(
             hook_stop,
             {"session_id": "test", "stop_hook_active": False, "transcript_path": str(transcript)},
             state_dir=tmp_path,
         )
     assert result == {}
-    mock_mine.assert_not_called()
+    mock_ingest.assert_not_called()
 
 
-def test_stop_hook_mines_when_auto_save_enabled(tmp_path):
-    """When config has stop_hook.auto_save=true (default), mining happens."""
+def test_stop_hook_blocks_when_auto_save_enabled(tmp_path):
+    """When config has stop_hook.auto_save=true (default), hook blocks."""
     transcript = tmp_path / "t.jsonl"
     _write_transcript(
         transcript,
         [{"message": {"role": "user", "content": f"msg {i}"}} for i in range(SAVE_INTERVAL)],
     )
-    with patch("mempalace.hooks_cli._mine_transcript") as mock_mine:
+    with patch("mempalace.hooks_cli._maybe_auto_ingest") as mock_ingest:
         result = _capture_hook_output(
             hook_stop,
             {"session_id": "test", "stop_hook_active": False, "transcript_path": str(transcript)},
             state_dir=tmp_path,
         )
-    assert result == {}
-    mock_mine.assert_called_once()
+    assert result["decision"] == "block"
+    mock_ingest.assert_called_once()
 
 
 # --- _parse_harness_input ---
@@ -429,24 +432,24 @@ def test_parse_harness_input_valid():
 
 
 def test_stop_hook_oserror_on_last_save_read(tmp_path):
-    """When last_save_file has invalid content, falls back to 0."""
+    """When last_save_file has invalid content, falls back to 0 and blocks."""
     transcript = tmp_path / "t.jsonl"
     _write_transcript(
         transcript,
         [{"message": {"role": "user", "content": f"msg {i}"}} for i in range(SAVE_INTERVAL)],
     )
     (tmp_path / "test_last_save").write_text("not_a_number", encoding="utf-8")
-    with patch("mempalace.hooks_cli._mine_transcript"):
+    with patch("mempalace.hooks_cli._maybe_auto_ingest"):
         result = _capture_hook_output(
             hook_stop,
             {"session_id": "test", "stop_hook_active": False, "transcript_path": str(transcript)},
             state_dir=tmp_path,
         )
-    assert result == {}
+    assert result["decision"] == "block"
 
 
 def test_stop_hook_oserror_on_write(tmp_path):
-    """When write to last_save_file fails, hook still outputs correctly."""
+    """When write to last_save_file fails, hook still blocks correctly."""
     transcript = tmp_path / "t.jsonl"
     _write_transcript(
         transcript,
@@ -460,7 +463,7 @@ def test_stop_hook_oserror_on_write(tmp_path):
     with (
         patch("mempalace.hooks_cli.STATE_DIR", tmp_path),
         patch.object(Path, "write_text", bad_write_text),
-        patch("mempalace.hooks_cli._mine_transcript"),
+        patch("mempalace.hooks_cli._maybe_auto_ingest"),
     ):
         result = _capture_hook_output(
             hook_stop,
@@ -471,7 +474,7 @@ def test_stop_hook_oserror_on_write(tmp_path):
             },
             state_dir=tmp_path,
         )
-    assert result == {}
+    assert result["decision"] == "block"
 
 
 # --- hook_precompact with MEMPAL_DIR ---
@@ -568,3 +571,47 @@ def test_run_hook_invalid_json(tmp_path):
     mock_output.assert_called_once()
     # Should not crash; will emit warnings since tmp_path has no identity.txt
     assert mock_output.call_args[0][0] is not None
+
+
+# --- _notify_statusline ---
+
+
+def test_notify_statusline_writes_file(tmp_path):
+    """Writes notification message to the statusline notify file."""
+    notify_path = tmp_path / "claude-statusline-notify"
+    with patch("mempalace.hooks_cli._NOTIFY_PATH", notify_path):
+        _notify_statusline("memories saved")
+    assert notify_path.read_text(encoding="utf-8") == "memories saved"
+
+
+def test_notify_statusline_oserror_silenced():
+    """OSError on write is silenced (e.g. /tmp not writable)."""
+    with patch("mempalace.hooks_cli._NOTIFY_PATH", Path("/nonexistent/dir/file")):
+        _notify_statusline("test")  # should not raise
+
+
+def test_stop_hook_writes_statusline_notification(tmp_path):
+    """Stop hook notifies statusline when blocking."""
+    transcript = tmp_path / "t.jsonl"
+    _write_transcript(
+        transcript,
+        [{"message": {"role": "user", "content": f"msg {i}"}} for i in range(SAVE_INTERVAL)],
+    )
+    with patch("mempalace.hooks_cli._notify_statusline") as mock_notify:
+        _capture_hook_output(
+            hook_stop,
+            {"session_id": "test", "stop_hook_active": False, "transcript_path": str(transcript)},
+            state_dir=tmp_path,
+        )
+    mock_notify.assert_called_once()
+
+
+def test_precompact_writes_statusline_notification(tmp_path):
+    """Precompact hook notifies statusline."""
+    with patch("mempalace.hooks_cli._notify_statusline") as mock_notify:
+        _capture_hook_output(
+            hook_precompact,
+            {"session_id": "test", "transcript_path": "/nonexistent/t.jsonl"},
+            state_dir=tmp_path,
+        )
+    mock_notify.assert_called_once()

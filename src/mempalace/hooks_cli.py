@@ -21,11 +21,26 @@ SAVE_INTERVAL = 15
 _CONFIG_DIR = Path.home() / ".mempalace"
 STATE_DIR = _CONFIG_DIR / "hook_state"
 
+STOP_BLOCK_REASON = (
+    "AUTO-SAVE checkpoint. Save key topics, decisions, quotes, and code "
+    "from this session to your memory system. Organize into appropriate "
+    "categories. Use verbatim quotes where possible. Continue conversation "
+    "after saving."
+)
+
 PRECOMPACT_BLOCK_REASON = (
     "COMPACTION IMMINENT \u2014 session transcript has been automatically "
     "mined into the palace. You may continue; detailed context from earlier "
     "messages will be compacted."
 )
+
+_NOTIFY_PATH = Path("/tmp/claude-statusline-notify")  # noqa: S108
+
+
+def _notify_statusline(message: str) -> None:
+    """Write a notification for the statusline script to display."""
+    with contextlib.suppress(OSError):
+        _NOTIFY_PATH.write_text(message, encoding="utf-8")
 
 
 def _sanitize_session_id(session_id: str) -> str:
@@ -84,12 +99,12 @@ def _output(data: dict) -> None:
     print(json.dumps(data, ensure_ascii=False))
 
 
-def _maybe_auto_ingest(*, sync: bool = False) -> None:
+def _maybe_auto_ingest(*, blocking: bool = False) -> None:
     """If MEMPAL_DIR is set and exists, run mempalace mine.
 
     Args:
-        sync: Run synchronously so the caller (and its statusMessage) stays
-              visible while mining is in progress.
+        blocking: If True, wait for mining to finish (used by precompact
+                  so memories land before compaction).
     """
     mempal_dir = os.environ.get("MEMPAL_DIR", "")
     if mempal_dir and Path(mempal_dir).is_dir():
@@ -97,7 +112,7 @@ def _maybe_auto_ingest(*, sync: bool = False) -> None:
             log_path = STATE_DIR / "hook.log"
             with log_path.open("a", encoding="utf-8") as log_f:
                 cmd = [sys.executable, "-m", "mempalace", "mine", mempal_dir]
-                if sync:
+                if blocking:
                     subprocess.run(  # noqa: S603
                         cmd,
                         stdout=log_f,
@@ -129,12 +144,12 @@ def _is_auto_save_enabled() -> bool:
         return True
 
 
-def _mine_transcript(transcript_path: str, *, sync: bool = False) -> None:
+def _mine_transcript(transcript_path: str, *, blocking: bool = False) -> None:
     """Mine the Claude Code transcript into the palace.
 
     Args:
-        sync: Run synchronously so the caller (and its statusMessage) stays
-              visible while mining is in progress.
+        blocking: If True, wait for mining to finish (used by precompact
+                  so memories land before compaction).
     """
     path = Path(transcript_path).expanduser()
     if not path.is_file():
@@ -152,7 +167,7 @@ def _mine_transcript(transcript_path: str, *, sync: bool = False) -> None:
                 "--mode",
                 "convos",
             ]
-            if sync:
+            if blocking:
                 subprocess.run(  # noqa: S603
                     cmd,
                     stdout=log_f,
@@ -218,9 +233,10 @@ def hook_stop(data: dict, harness: str) -> None:
         _log(f"TRIGGERING SAVE at exchange {exchange_count}")
 
         _maybe_auto_ingest()
-        _mine_transcript(transcript_path, sync=True)
-
-    _output({})
+        _notify_statusline("memories checkpoint")
+        _output({"decision": "block", "reason": STOP_BLOCK_REASON})
+    else:
+        _output({})
 
 
 def hook_session_start(data: dict, harness: str) -> None:
@@ -255,11 +271,12 @@ def hook_precompact(data: dict, harness: str) -> None:
     _log(f"PRE-COMPACT triggered for session {session_id}")
 
     # Auto-ingest synchronously before compaction (so memories land first)
-    _maybe_auto_ingest(sync=True)
+    _maybe_auto_ingest(blocking=True)
 
     # Mine transcript synchronously before compaction
-    _mine_transcript(transcript_path, sync=True)
+    _mine_transcript(transcript_path, blocking=True)
 
+    _notify_statusline("mining before compaction")
     _output({"decision": "block", "reason": PRECOMPACT_BLOCK_REASON})
 
 

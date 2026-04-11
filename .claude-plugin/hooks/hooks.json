@@ -6,8 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/mempal-sessionstart-hook.sh",
-            "statusMessage": "Checking palace health..."
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/mempal-sessionstart-hook.sh"
           }
         ]
       }
@@ -17,8 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/mempal-stop-hook.sh",
-            "statusMessage": "Saving memories to palace..."
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/mempal-stop-hook.sh"
           }
         ]
       }
@@ -28,8 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/mempal-precompact-hook.sh",
-            "statusMessage": "Mining conversation before compaction..."
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/mempal-precompact-hook.sh"
           }
         ]
       }
