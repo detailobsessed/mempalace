@@ -90,6 +90,31 @@ def test_count_handles_list_content(tmp_path):
     assert _count_human_messages(str(transcript)) == 1
 
 
+def test_count_codex_user_messages(tmp_path):
+    transcript = tmp_path / "codex.jsonl"
+    _write_transcript(
+        transcript,
+        [
+            {"type": "event_msg", "payload": {"type": "user_message", "message": "hello"}},
+            {"type": "event_msg", "payload": {"type": "user_message", "message": "world"}},
+            {"type": "event_msg", "payload": {"type": "assistant_message", "message": "hi"}},
+        ],
+    )
+    assert _count_human_messages(str(transcript)) == 2
+
+
+def test_count_codex_skips_command_messages(tmp_path):
+    transcript = tmp_path / "codex.jsonl"
+    _write_transcript(
+        transcript,
+        [
+            {"type": "event_msg", "payload": {"type": "user_message", "message": "<command-message>init</command-message>"}},
+            {"type": "event_msg", "payload": {"type": "user_message", "message": "real question"}},
+        ],
+    )
+    assert _count_human_messages(str(transcript)) == 1
+
+
 def test_count_missing_file():
     assert _count_human_messages("/nonexistent/path.jsonl") == 0
 

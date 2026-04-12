@@ -28,6 +28,14 @@ This fork is a learning playground where we:
 
 ---
 
+## Important: fake MemPalace websites — April 11, 2026
+
+Several community members (upstream #267, #326, #506) have reported fake MemPalace websites, including ones distributing malware.
+
+MemPalace **has no website** (at least for now), so anything claiming to be one is false. Stay safe out there.
+
+---
+
 ## What's different here
 
 ### Tooling & infrastructure

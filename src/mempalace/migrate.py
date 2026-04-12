@@ -30,55 +30,56 @@ def extract_drawers_from_sqlite(db_path: str) -> list:
     """
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
-
-    rows = conn.execute(
-        """
-        SELECT e.embedding_id,
-               MAX(CASE WHEN em.key = 'chroma:document' THEN em.string_value END) as document
-        FROM embeddings e
-        JOIN embedding_metadata em ON em.id = e.id
-        GROUP BY e.embedding_id
-    """
-    ).fetchall()
-
-    drawers = []
-    for row in rows:
-        embedding_id = row["embedding_id"]
-        document = row["document"]
-        if not document:
-            continue
-
-        meta_rows = conn.execute(
+    try:
+        rows = conn.execute(
             """
-            SELECT em.key, em.string_value, em.int_value, em.float_value, em.bool_value
-            FROM embedding_metadata em
-            JOIN embeddings e ON e.id = em.id
-            WHERE e.embedding_id = ?
-              AND em.key NOT LIKE 'chroma:%'
-        """,
-            (embedding_id,),
+            SELECT e.embedding_id,
+                   MAX(CASE WHEN em.key = 'chroma:document' THEN em.string_value END) as document
+            FROM embeddings e
+            JOIN embedding_metadata em ON em.id = e.id
+            GROUP BY e.embedding_id
+        """
         ).fetchall()
 
-        metadata = {}
-        for mr in meta_rows:
-            key = mr["key"]
-            if mr["string_value"] is not None:
-                metadata[key] = mr["string_value"]
-            elif mr["int_value"] is not None:
-                metadata[key] = mr["int_value"]
-            elif mr["float_value"] is not None:
-                metadata[key] = mr["float_value"]
-            elif mr["bool_value"] is not None:
-                metadata[key] = bool(mr["bool_value"])
+        drawers = []
+        for row in rows:
+            embedding_id = row["embedding_id"]
+            document = row["document"]
+            if not document:
+                continue
 
-        drawers.append({
-            "id": embedding_id,
-            "document": document,
-            "metadata": metadata,
-        })
+            meta_rows = conn.execute(
+                """
+                SELECT em.key, em.string_value, em.int_value, em.float_value, em.bool_value
+                FROM embedding_metadata em
+                JOIN embeddings e ON e.id = em.id
+                WHERE e.embedding_id = ?
+                  AND em.key NOT LIKE 'chroma:%'
+            """,
+                (embedding_id,),
+            ).fetchall()
 
-    conn.close()
-    return drawers
+            metadata = {}
+            for mr in meta_rows:
+                key = mr["key"]
+                if mr["string_value"] is not None:
+                    metadata[key] = mr["string_value"]
+                elif mr["int_value"] is not None:
+                    metadata[key] = mr["int_value"]
+                elif mr["float_value"] is not None:
+                    metadata[key] = mr["float_value"]
+                elif mr["bool_value"] is not None:
+                    metadata[key] = bool(mr["bool_value"])
+
+            drawers.append({
+                "id": embedding_id,
+                "document": document,
+                "metadata": metadata,
+            })
+
+        return drawers
+    finally:
+        conn.close()
 
 
 def detect_chromadb_version(db_path: str) -> str:
@@ -96,7 +97,7 @@ def detect_chromadb_version(db_path: str) -> str:
         conn.close()
 
 
-def migrate(palace_path: str, dry_run: bool = False):  # noqa: PLR0915, C901
+def migrate(palace_path: str, dry_run: bool = False):  # noqa: PLR0912, PLR0914, PLR0915, C901
     """Migrate a palace to the currently installed ChromaDB version."""
     import chromadb
 
@@ -119,6 +120,7 @@ def migrate(palace_path: str, dry_run: bool = False):  # noqa: PLR0915, C901
     print(f"  Target:    ChromaDB {chromadb.__version__}")
 
     # Try reading with current chromadb first
+    client = None
     try:
         client = chromadb.PersistentClient(path=palace_path)
         col = client.get_collection("mempalace_drawers")
@@ -130,6 +132,9 @@ def migrate(palace_path: str, dry_run: bool = False):  # noqa: PLR0915, C901
         print(f"\n  Palace is already readable by chromadb {chromadb.__version__}.")
         print(f"  {count} drawers found. No migration needed.")
         return True
+    finally:
+        if client is not None:
+            client.close()
 
     # Extract all drawers via raw SQL
     drawers = extract_drawers_from_sqlite(db_path)
@@ -169,31 +174,34 @@ def migrate(palace_path: str, dry_run: bool = False):  # noqa: PLR0915, C901
 
     temp_palace = tempfile.mkdtemp(prefix="mempalace_migrate_")
     print(f"  Creating fresh palace in {temp_palace}...")
-    client = chromadb.PersistentClient(path=temp_palace)
-    col = client.get_or_create_collection("mempalace_drawers")
+    try:
+        client = chromadb.PersistentClient(path=temp_palace)
+        col = client.get_or_create_collection("mempalace_drawers")
 
-    # Re-import in batches
-    batch_size = 500
-    imported = 0
-    for i in range(0, len(drawers), batch_size):
-        batch = drawers[i : i + batch_size]
-        col.add(
-            ids=[d["id"] for d in batch],
-            documents=[d["document"] for d in batch],
-            metadatas=[d["metadata"] for d in batch],
-        )
-        imported += len(batch)
-        print(f"  Imported {imported}/{len(drawers)} drawers...")
+        # Re-import in batches
+        batch_size = 500
+        imported = 0
+        for i in range(0, len(drawers), batch_size):
+            batch = drawers[i : i + batch_size]
+            col.add(
+                ids=[d["id"] for d in batch],
+                documents=[d["document"] for d in batch],
+                metadatas=[d["metadata"] for d in batch],
+            )
+            imported += len(batch)
+            print(f"  Imported {imported}/{len(drawers)} drawers...")
 
-    # Verify before swapping
-    final_count = col.count()
-    del col
-    del client
+        # Verify before swapping
+        final_count = col.count()
+        client.close()
 
-    # Swap: remove old palace, move new one into place
-    print("  Swapping old palace for migrated version...")
-    shutil.rmtree(palace_path)
-    shutil.move(temp_palace, palace_path)
+        # Swap: remove old palace, move new one into place
+        print("  Swapping old palace for migrated version...")
+        shutil.rmtree(palace_path)
+        shutil.move(temp_palace, palace_path)
+    except Exception:
+        shutil.rmtree(temp_palace, ignore_errors=True)
+        raise
 
     print("\n  Migration complete.")
     print(f"  Drawers migrated: {final_count}")

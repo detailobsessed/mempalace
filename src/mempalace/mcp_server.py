@@ -217,10 +217,6 @@ def tool_list_wings():
     wings = {}
     batch_size = 5000
     offset = 0
-    try:
-        col.count()  # verify collection is accessible
-    except Exception as e:
-        return {"wings": {}, "error": str(e)}
     while True:
         try:
             batch = col.get(include=["metadatas"], limit=batch_size, offset=offset)
@@ -248,10 +244,6 @@ def tool_list_rooms(wing: str | None = None):
     batch_size = 5000
     offset = 0
     where = {"wing": wing} if wing else None
-    try:
-        col.count()  # verify collection is accessible
-    except Exception as e:
-        return {"wing": wing or "all", "rooms": {}, "error": str(e)}
     while True:
         try:
             batch = col.get(
@@ -284,10 +276,6 @@ def tool_get_taxonomy():
     taxonomy = {}
     batch_size = 5000
     offset = 0
-    try:
-        col.count()  # verify collection is accessible
-    except Exception as e:
-        return {"taxonomy": {}, "error": str(e)}
     while True:
         try:
             batch = col.get(include=["metadatas"], limit=batch_size, offset=offset)

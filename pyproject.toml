@@ -228,7 +228,7 @@ unresolved-import = "warn"
 
 # chromadb PersistentClient.close() exists at runtime but ClientAPI stubs lack it
 [[tool.ty.overrides]]
-include = ["src/mempalace/repair.py", "src/mempalace/dedup.py"]
+include = ["src/mempalace/repair.py", "src/mempalace/dedup.py", "src/mempalace/migrate.py"]
 [tool.ty.overrides.rules]
 unresolved-attribute = "ignore"
 
