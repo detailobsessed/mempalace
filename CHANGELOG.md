@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 <!-- version list -->
 
+## v0.0.5 (2026-04-12)
+
+### Bug Fixes
+
+- Filter hooks at command level instead of entry level
+  ([`0c65a18`](https://github.com/detailobsessed/mempalace/commit/0c65a18d7cc9899cb32e61903386c8bee8124187))
+
+### Chores
+
+- Clean up setup script, restore tests, add hook verification
+  ([`d572e12`](https://github.com/detailobsessed/mempalace/commit/d572e1289728dc79a0032e3d17831e76c1c27759))
+
+
 ## v0.0.4 (2026-04-11)
 
 ### Bug Fixes
