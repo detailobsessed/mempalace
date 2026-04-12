@@ -1,6 +1,8 @@
 """Tests for miner.py — file chunking and room detection."""
 
-from mempalace.miner import GitignoreMatcher, chunk_text, detect_room, scan_project
+from pathlib import Path
+
+from mempalace.miner import GitignoreMatcher, add_drawer, chunk_text, detect_room, process_file, scan_project
 
 
 class TestChunkText:
@@ -206,7 +208,6 @@ class TestGitignoreMatcher:
         """Path outside base_dir returns None (line 147-148)."""
         (tmp_path / ".gitignore").write_text("*.log\n", encoding="utf-8")
         matcher = GitignoreMatcher.from_dir(tmp_path)
-        from pathlib import Path
 
         assert matcher.matches(Path("/some/other/place/file.log"), is_dir=False) is None
 
@@ -326,12 +327,49 @@ class TestGitignoreMatcher:
         assert matcher.matches(tmp_path / "src" / "module.py", is_dir=False) is True
 
 
+class TestPurgeBeforeRemine:
+    """Re-mining a file purges stale drawers before inserting fresh ones."""
+
+    def test_purge_removes_preexisting_drawers(self, tmp_path, collection, monkeypatch):
+        """process_file should purge stale drawers for the same source_file."""
+        import mempalace.miner as miner_mod
+
+        source = tmp_path / "app.py"
+        source_file = str(source)
+
+        # Pre-seed stale drawers with matching source_file metadata
+        collection.add(
+            ids=["stale_1", "stale_2"],
+            documents=["old content one", "old content two"],
+            metadatas=[
+                {"wing": "w", "room": "r", "source_file": source_file, "chunk_index": 0},
+                {"wing": "w", "room": "r", "source_file": source_file, "chunk_index": 1},
+            ],
+        )
+        assert collection.count() == 2
+
+        # Bypass file_already_mined guard to simulate forced re-mine
+        monkeypatch.setattr(miner_mod, "file_already_mined", lambda *_a, **_kw: False)
+
+        # Mine the file — purge should delete the stale drawers first
+        source.write_text("fresh content here\n" * 30, encoding="utf-8")
+        rooms = [{"name": "general", "keywords": []}]
+        count = process_file(source, tmp_path, collection, "test_wing", rooms, "agent", dry_run=False)
+        assert count > 0
+
+        # Stale IDs should be gone
+        remaining_ids = set(collection.get()["ids"])
+        assert "stale_1" not in remaining_ids
+        assert "stale_2" not in remaining_ids
+        # Only fresh drawers remain
+        assert len(remaining_ids) == count
+
+
 class TestDrawerIdHashing:
     """Drawer IDs must use SHA-256 (not MD5) for collision resistance."""
 
     def test_drawer_id_uses_sha256_length(self, collection):
         """SHA-256 hex[:24] produces a 24-char suffix, not MD5's 16-char."""
-        from mempalace.miner import add_drawer
 
         add_drawer(collection, "test_wing", "test_room", "hello world", "/tmp/test.txt", 0, "test")
         ids = collection.get()["ids"]

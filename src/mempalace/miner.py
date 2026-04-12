@@ -478,6 +478,14 @@ def process_file(  # noqa: PLR0913, PLR0917
         print(f"    [DRY RUN] {filepath.name} → room:{room} ({len(chunks)} drawers)")
         return len(chunks)
 
+    # Purge stale drawers for this file before re-inserting fresh chunks.
+    # Converts re-mines from upsert (hnswlib updatePoint, thread-unsafe on
+    # macOS ARM + chromadb 0.6.3) into clean delete+insert.
+    try:
+        collection.delete(where={"source_file": source_file})
+    except Exception as exc:
+        print(f"  [warn] could not purge stale drawers for {source_file}: {exc}", file=sys.stderr)
+
     drawers_added = 0
     for chunk in chunks:
         added = add_drawer(
