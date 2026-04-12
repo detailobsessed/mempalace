@@ -254,10 +254,12 @@ def tool_list_rooms(wing: str | None = None):
         return {"wing": wing or "all", "rooms": {}, "error": str(e)}
     while True:
         try:
-            kwargs = {"include": ["metadatas"], "limit": batch_size, "offset": offset}
-            if where:
-                kwargs["where"] = where
-            batch = col.get(**kwargs)
+            batch = col.get(
+                include=["metadatas"],
+                limit=batch_size,
+                offset=offset,
+                where=where,
+            )
             rows = batch["metadatas"] or []
             for m in rows:
                 r = m.get("room", "unknown")
