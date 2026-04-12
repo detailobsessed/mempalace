@@ -155,6 +155,14 @@ def cmd_split(args):
         sys.argv = old_argv
 
 
+def cmd_migrate(args):
+    """Migrate palace from a different ChromaDB version."""
+    from .migrate import migrate
+
+    palace_path = str(Path(args.palace).expanduser()) if args.palace else MempalaceConfig().palace_path
+    migrate(palace_path=palace_path, dry_run=args.dry_run)
+
+
 def cmd_status(args):
     from .miner import status
 
@@ -555,6 +563,17 @@ def main():  # noqa: PLR0915, PLR0914
         help="Show MCP setup command for connecting MemPalace to your AI client",
     )
 
+    # migrate
+    p_migrate = sub.add_parser(
+        "migrate",
+        help="Migrate palace from a different ChromaDB version (fixes 3.0.0 → 3.1.0 upgrade)",
+    )
+    p_migrate.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be migrated without changing anything",
+    )
+
     # status
     sub.add_parser("status", help="Show what's been filed")
 
@@ -591,6 +610,7 @@ def main():  # noqa: PLR0915, PLR0914
         "wake-up": cmd_wakeup,
         "mcp": cmd_mcp,
         "repair": cmd_repair,
+        "migrate": cmd_migrate,
         "status": cmd_status,
         "hook": _dispatch_hook,
         "instructions": _dispatch_instructions,
