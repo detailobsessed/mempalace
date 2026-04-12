@@ -53,6 +53,21 @@ def _is_command_message(content: str | list) -> bool:
     return False
 
 
+def _is_user_turn(entry: dict) -> bool:
+    """Check if a transcript entry is a countable user turn (Claude Code or Codex)."""
+    # Claude Code format: {"message": {"role": "user", "content": "..."}}
+    msg = entry.get("message", {})
+    if isinstance(msg, dict) and msg.get("role") == "user":
+        return not _is_command_message(msg.get("content", ""))
+    # Codex CLI format: {"type": "event_msg", "payload": {"type": "user_message", ...}}
+    if entry.get("type") == "event_msg":
+        payload = entry.get("payload", {})
+        if isinstance(payload, dict) and payload.get("type") == "user_message":
+            msg_text = payload.get("message", "")
+            return isinstance(msg_text, str) and not _is_command_message(msg_text)
+    return False
+
+
 def _count_human_messages(transcript_path: str) -> int:
     """Count human messages in a JSONL transcript, skipping command-messages."""
     path = Path(transcript_path).expanduser()
@@ -64,10 +79,7 @@ def _count_human_messages(transcript_path: str) -> int:
             for line in f:
                 try:
                     entry = json.loads(line)
-                    msg = entry.get("message", {})
-                    if not (isinstance(msg, dict) and msg.get("role") == "user"):
-                        continue
-                    if not _is_command_message(msg.get("content", "")):
+                    if _is_user_turn(entry):
                         count += 1
                 except json.JSONDecodeError, AttributeError:
                     pass
