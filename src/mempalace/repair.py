@@ -5,7 +5,7 @@ When ChromaDB's HNSW index accumulates duplicate entries (from repeated
 add() calls with the same ID), link_lists.bin can grow unbounded —
 terabytes on large palaces — eventually causing segfaults.
 
-Three operations:
+Three operations (via standalone entry point):
 
   scan    — find every corrupt/unfetchable ID in the palace
   prune   — delete only the corrupt IDs (surgical)
@@ -17,10 +17,7 @@ Usage (standalone):
     python -m mempalace.repair prune --confirm
     python -m mempalace.repair rebuild
 
-Usage (from CLI):
-    mempalace repair scan [--wing X]
-    mempalace repair prune --confirm
-    mempalace repair rebuild
+The CLI ``mempalace repair`` command runs a combined scan + rebuild.
 """
 
 from __future__ import annotations
@@ -250,12 +247,12 @@ def rebuild_index(palace_path: str | None = None) -> None:
         client.close()
         return
 
-    all_ids, all_docs, all_metas = _extract_all_drawers(col, total)
-
-    _backup_sqlite(palace)
-
-    _refile_drawers(client, all_ids, all_docs, all_metas)
-    client.close()
+    try:
+        all_ids, all_docs, all_metas = _extract_all_drawers(col, total)
+        _backup_sqlite(palace)
+        _refile_drawers(client, all_ids, all_docs, all_metas)
+    finally:
+        client.close()
 
 
 def _extract_all_drawers(col, total: int) -> tuple[list[str], list[str], list[dict]]:

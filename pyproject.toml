@@ -226,6 +226,12 @@ exclude = ["tests/"]
 # autocorrect is an optional dependency, guarded by try/except ImportError
 unresolved-import = "warn"
 
+# chromadb PersistentClient.close() exists at runtime but ClientAPI stubs lack it
+[[tool.ty.overrides]]
+include = ["src/mempalace/repair.py", "src/mempalace/dedup.py"]
+[tool.ty.overrides.rules]
+unresolved-attribute = "ignore"
+
 [tool.ty.environment]
 python-version = "3.14"
 python = ".venv"

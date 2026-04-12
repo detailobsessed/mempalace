@@ -95,7 +95,7 @@ def dedup_source_group(
         try:
             results = col.query(
                 query_texts=[doc],
-                n_results=min(len(kept), 5),
+                n_results=min(len(kept), 20),
                 include=["distances"],
             )
             dists = results["distances"][0] if results["distances"] else []
