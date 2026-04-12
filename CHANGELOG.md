@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 <!-- version list -->
 
+## v0.1.0 (2026-04-12)
+
+### Features
+
+- Mempalace migrate command for ChromaDB version recovery
+  ([#39](https://github.com/detailobsessed/mempalace/pull/39),
+  [`6ab33c6`](https://github.com/detailobsessed/mempalace/commit/6ab33c65b4e03bb66b6ee2c759fadc42ba721515))
+
+
 ## v0.0.13 (2026-04-12)
 
 ### Bug Fixes

@@ -708,7 +708,7 @@ wheels = [
 
 [[package]]
 name = "mempalace"
-version = "0.0.13"
+version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "chromadb" },
