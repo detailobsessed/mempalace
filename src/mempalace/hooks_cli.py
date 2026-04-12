@@ -20,20 +20,25 @@ from pathlib import Path
 SAVE_INTERVAL = 15
 _CONFIG_DIR = Path.home() / ".mempalace"
 STATE_DIR = _CONFIG_DIR / "hook_state"
+_bg_procs: list[subprocess.Popen[bytes]] = []  # prevent GC ResourceWarning on fire-and-forget
 
 STOP_BLOCK_REASON = (
-    "AUTO-SAVE checkpoint. Save key topics, decisions, quotes, and code "
-    "from this session to your memory system. Organize into appropriate "
-    "categories. Use verbatim quotes where possible. Continue conversation "
-    "after saving."
+    "AUTO-SAVE checkpoint (MemPalace). Save this session's key content:\n"
+    "1. mempalace_diary_write — AAAK-compressed session summary\n"
+    "2. mempalace_add_drawer — verbatim quotes, decisions, code snippets\n"
+    "3. mempalace_kg_add — entity relationships (optional)\n"
+    "Do NOT write to Claude Code's native auto-memory (.md files). "
+    "Continue conversation after saving."
 )
 
 PRECOMPACT_BLOCK_REASON = (
-    "COMPACTION IMMINENT. Save ALL topics, decisions, quotes, code, and "
-    "important context from this session to your memory system. Be thorough "
-    "\u2014 after compaction, detailed context will be lost. Organize into "
-    "appropriate categories. Use verbatim quotes where possible. Save "
-    "everything, then allow compaction to proceed."
+    "COMPACTION IMMINENT (MemPalace). Save ALL session content before context is lost:\n"
+    "1. mempalace_diary_write — thorough AAAK-compressed session summary\n"
+    "2. mempalace_add_drawer — ALL verbatim quotes, decisions, code, context\n"
+    "3. mempalace_kg_add — entity relationships (optional)\n"
+    "Be thorough \u2014 after compaction, detailed context will be lost. "
+    "Do NOT write to Claude Code's native auto-memory (.md files). "
+    "Save everything to MemPalace, then allow compaction to proceed."
 )
 
 
@@ -114,6 +119,7 @@ def _maybe_auto_ingest(*, blocking: bool = False) -> None:
     mempal_dir = os.environ.get("MEMPAL_DIR", "")
     if mempal_dir and Path(mempal_dir).is_dir():
         try:
+            STATE_DIR.mkdir(parents=True, exist_ok=True)
             log_path = STATE_DIR / "hook.log"
             with log_path.open("a", encoding="utf-8") as log_f:
                 cmd = [sys.executable, "-m", "mempalace", "mine", mempal_dir]
@@ -126,7 +132,9 @@ def _maybe_auto_ingest(*, blocking: bool = False) -> None:
                         check=False,
                     )
                 else:
-                    subprocess.Popen(cmd, stdout=log_f, stderr=log_f)  # noqa: S603
+                    _bg_procs.append(
+                        subprocess.Popen(cmd, stdout=log_f, stderr=log_f),  # noqa: S603
+                    )
         except OSError, subprocess.SubprocessError:
             pass
 
