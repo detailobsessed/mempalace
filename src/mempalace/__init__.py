@@ -1,6 +1,6 @@
 """MemPalace — Give your AI a memory. No API key required."""
 
-__version__ = "0.0.10"
+__version__ = "0.0.11"
 
 from .cli import main
 

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 <!-- version list -->
 
+## v0.0.11 (2026-04-12)
+
+### Bug Fixes
+
+- Paginate large collection reads with early-exit on short batch
+  ([#37](https://github.com/detailobsessed/mempalace/pull/37),
+  [`9950509`](https://github.com/detailobsessed/mempalace/commit/99505091c050cb3f89225ba336f989ff70600da8))
+
+### Chores
+
+- Update uv.lock for v0.0.10
+  ([`1bec7b3`](https://github.com/detailobsessed/mempalace/commit/1bec7b3ae7469559e9fa7fb6a0ce5e5002efdb64))
+
+
 ## v0.0.10 (2026-04-12)
 
 ### Bug Fixes
