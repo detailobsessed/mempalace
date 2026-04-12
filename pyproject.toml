@@ -68,9 +68,6 @@ docs = [
     "markdown-callouts>=0.4",
     "markdown-exec>=1.10",
     "mkdocs-coverage>=1.1",
-    "mkdocs-git-revision-date-localized-plugin>=1.4",
-    "mkdocs-llmstxt>=0.4",
-    "mkdocs-minify-plugin>=0.8",
     "mkdocs-section-index>=0.3.9",
     "mkdocstrings[python]>=0.27",
     "zensical",
@@ -259,7 +256,7 @@ fix = ["lint --fix", "format"]
 
 # Documentation
 docs = "zensical serve"
-docs-build = "zensical build --clean"
+docs-build = "zensical build -s --clean"
 
 # Pre-commit
 prek = "prek run --all-files"
