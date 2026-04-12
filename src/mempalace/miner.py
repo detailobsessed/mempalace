@@ -6,6 +6,7 @@ Routes each file to the right room based on content.
 Stores verbatim chunks as drawers. No summaries. Ever.
 """
 
+import contextlib
 import fnmatch
 import hashlib
 import operator
@@ -477,6 +478,12 @@ def process_file(  # noqa: PLR0913, PLR0917
     if dry_run:
         print(f"    [DRY RUN] {filepath.name} → room:{room} ({len(chunks)} drawers)")
         return len(chunks)
+
+    # Purge stale drawers for this file before re-inserting fresh chunks.
+    # Converts re-mines from upsert (hnswlib updatePoint, thread-unsafe on
+    # macOS ARM + chromadb 0.6.3) into clean delete+insert.
+    with contextlib.suppress(Exception):
+        collection.delete(where={"source_file": source_file})
 
     drawers_added = 0
     for chunk in chunks:
