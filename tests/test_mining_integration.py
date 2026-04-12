@@ -166,7 +166,7 @@ class TestProcessFile:
             {"name": "backend", "description": "Backend code"},
             {"name": "general", "description": "Everything else"},
         ]
-        count = process_file(
+        count, room = process_file(
             filepath=filepath,
             project_path=project_dir,
             collection=col,
@@ -176,6 +176,7 @@ class TestProcessFile:
             dry_run=False,
         )
         assert count > 0
+        assert room == "backend"
         assert col.count() == count
 
     def test_process_file_skips_already_mined(self, project_dir, palace_path):
@@ -191,16 +192,16 @@ class TestProcessFile:
             "agent": "test",
             "dry_run": False,
         }
-        first = process_file(**kwargs)
+        first, _ = process_file(**kwargs)
         assert first > 0
-        second = process_file(**kwargs)
+        second, _ = process_file(**kwargs)
         assert second == 0
 
     def test_process_file_dry_run(self, project_dir, palace_path):
         col = get_collection(palace_path)
         filepath = project_dir / "backend" / "app.py"
         rooms = [{"name": "backend", "description": "Backend code"}]
-        count = process_file(
+        count, room = process_file(
             filepath=filepath,
             project_path=project_dir,
             collection=col,
@@ -210,6 +211,7 @@ class TestProcessFile:
             dry_run=True,
         )
         assert count > 0
+        assert room == "backend"
         # Dry run should not add anything to the collection
         assert col.count() == 0
 
@@ -218,7 +220,7 @@ class TestProcessFile:
         tiny.write_text("x=1", encoding="utf-8")
         col = get_collection(palace_path)
         rooms = [{"name": "general", "description": "All"}]
-        count = process_file(
+        count, _ = process_file(
             filepath=tiny,
             project_path=project_dir,
             collection=col,
