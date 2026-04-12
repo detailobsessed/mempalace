@@ -267,6 +267,9 @@ prek = "prek run --all-files"
 check-template = { shell = "copier check-update || true" }
 update-template = { shell = "copier update --trust . --skip-answered --defaults && uv sync --upgrade && prek autoupdate && echo '  Done'" }
 
+# Development
+dev-reload = { shell = "bash scripts/dev-reload.sh" }
+
 # Git utilities
 tags = "sh -c 'git fetch --tags && git tag --sort=-version:refname'"
 
