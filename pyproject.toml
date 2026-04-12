@@ -208,7 +208,7 @@ markers = [
 filterwarnings = [
     "error",
     "ignore::DeprecationWarning:chromadb",
-    # chromadb's PersistentClient leaks sqlite connections on GC; tracked in DOT-451
+    # chromadb internally leaks sqlite connections on GC; can't fix upstream
     "ignore::pytest.PytestUnraisableExceptionWarning",
 ]
 
