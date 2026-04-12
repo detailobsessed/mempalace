@@ -288,7 +288,7 @@ watch = "gh run watch"
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
 version_variables = ["src/mempalace/__init__.py:__version__"]
-build_command = "uv lock --upgrade-package mempalace && uv build"
+build_command = "uv lock --upgrade-package mempalace && git add uv.lock && uv build"
 allow_zero_version = true
 major_on_zero = false
 commit_message = "chore(release): v{version}"
