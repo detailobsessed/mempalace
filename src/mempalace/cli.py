@@ -209,7 +209,8 @@ def cmd_repair(args):  # noqa: PLR0915, PLR0914
         offset += batch_size
     print(f"  Extracted {len(all_ids)} drawers")
 
-    # Backup and rebuild
+    # Backup and rebuild — strip trailing separator to prevent backup inside source
+    palace_path = palace_path.rstrip("/\\")
     backup_path = palace_path + ".backup"
     if Path(backup_path).exists():
         shutil.rmtree(backup_path)

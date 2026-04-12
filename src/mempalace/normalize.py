@@ -23,6 +23,10 @@ def normalize(filepath: str) -> str:
     Plain text files pass through unchanged.
     """
     try:
+        file_size = Path(filepath).stat().st_size
+        if file_size > 500 * 1024 * 1024:  # 500 MB safety limit
+            msg = f"File too large ({file_size // (1024 * 1024)} MB): {filepath}"
+            raise OSError(msg)  # noqa: TRY301
         content = Path(filepath).read_text(encoding="utf-8", errors="replace")
     except OSError as e:
         msg = f"Could not read {filepath}: {e}"
