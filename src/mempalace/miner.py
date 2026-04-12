@@ -418,7 +418,7 @@ def add_drawer(  # noqa: PLR0913, PLR0917
     agent: str,
 ):
     """Add one drawer to the palace."""
-    drawer_id = f"drawer_{wing}_{room}_{hashlib.md5((source_file + str(chunk_index)).encode(), usedforsecurity=False).hexdigest()[:16]}"
+    drawer_id = f"drawer_{wing}_{room}_{hashlib.sha256((source_file + str(chunk_index)).encode()).hexdigest()[:24]}"
     try:
         collection.add(
             documents=[content],

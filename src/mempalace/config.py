@@ -4,6 +4,7 @@ MemPalace configuration system.
 Priority: env vars > config file (~/.mempalace/config.json) > defaults
 """
 
+import contextlib
 import json
 import os
 from pathlib import Path
@@ -125,6 +126,9 @@ class MempalaceConfig:
     def init(self):
         """Create config directory and write default config.json if it doesn't exist."""
         self._config_dir.mkdir(parents=True, exist_ok=True)
+        # Restrict directory permissions to owner only (Unix)
+        with contextlib.suppress(OSError, NotImplementedError):
+            self._config_dir.chmod(0o700)
         if not self._config_file.exists():
             default_config = {
                 "palace_path": DEFAULT_PALACE_PATH,
@@ -132,7 +136,9 @@ class MempalaceConfig:
                 "topic_wings": DEFAULT_TOPIC_WINGS,
                 "hall_keywords": DEFAULT_HALL_KEYWORDS,
             }
-            with Path(self._config_file).open("w", encoding="utf-8") as f:
+            # Create file with restricted permissions from the start (no TOCTOU window)
+            fd = os.open(self._config_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(default_config, f, indent=2)
         return self._config_file
 
@@ -143,7 +149,10 @@ class MempalaceConfig:
             people_map: Dict mapping name variants to canonical names.
         """
         self._config_dir.mkdir(parents=True, exist_ok=True)
-        with Path(self._people_map_file).open("w", encoding="utf-8") as f:
+        with contextlib.suppress(OSError, NotImplementedError):
+            self._config_dir.chmod(0o700)
+        fd = os.open(self._people_map_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(people_map, f, indent=2)
         return self._people_map_file
 

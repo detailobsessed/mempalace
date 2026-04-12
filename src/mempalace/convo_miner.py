@@ -43,6 +43,7 @@ SKIP_DIRS = {
 }
 
 MIN_CHUNK_SIZE = 30
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB — skip files larger than this
 
 
 # =============================================================================
@@ -240,6 +241,15 @@ def scan_convos(convo_dir: str) -> list:
                 continue
             filepath = Path(root) / filename
             if filepath.suffix.lower() in CONVO_EXTENSIONS:
+                # Skip symlinks — prevents following links to unexpected targets
+                if filepath.is_symlink():
+                    continue
+                # Skip files exceeding size limit
+                try:
+                    if filepath.stat().st_size > MAX_FILE_SIZE:
+                        continue
+                except OSError:
+                    continue
                 files.append(filepath)
     return files
 
@@ -350,10 +360,9 @@ def mine_convos(  # noqa: C901, PLR0913, PLR0917, PLR0912, PLR0915, PLR0914
             chunk_room = chunk.get("memory_type", room) if extract_mode == "general" else room
             if extract_mode == "general":
                 room_counts[chunk_room] += 1
-            chunk_hash = hashlib.md5(
+            chunk_hash = hashlib.sha256(
                 (source_file + str(chunk["chunk_index"])).encode(),
-                usedforsecurity=False,
-            ).hexdigest()[:16]
+            ).hexdigest()[:24]
             drawer_id = f"drawer_{wing}_{chunk_room}_{chunk_hash}"
             try:
                 collection.add(

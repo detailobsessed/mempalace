@@ -108,11 +108,11 @@ class KnowledgeGraph:
         eid = self._entity_id(name)
         props = json.dumps(properties or {})
         conn = self._conn()
-        conn.execute(
-            "INSERT OR REPLACE INTO entities (id, name, type, properties) VALUES (?, ?, ?, ?)",
-            (eid, name, entity_type, props),
-        )
-        conn.commit()
+        with conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO entities (id, name, type, properties) VALUES (?, ?, ?, ?)",
+                (eid, name, entity_type, props),
+            )
 
         return eid
 
@@ -141,38 +141,38 @@ class KnowledgeGraph:
 
         # Auto-create entities if they don't exist
         conn = self._conn()
-        conn.execute("INSERT OR IGNORE INTO entities (id, name) VALUES (?, ?)", (sub_id, subject))
-        conn.execute("INSERT OR IGNORE INTO entities (id, name) VALUES (?, ?)", (obj_id, obj))
+        with conn:
+            conn.execute("INSERT OR IGNORE INTO entities (id, name) VALUES (?, ?)", (sub_id, subject))
+            conn.execute("INSERT OR IGNORE INTO entities (id, name) VALUES (?, ?)", (obj_id, obj))
 
-        # Check for existing identical triple
-        existing = conn.execute(
-            "SELECT id FROM triples WHERE subject=? AND predicate=? AND object=? AND valid_to IS NULL",
-            (sub_id, pred, obj_id),
-        ).fetchone()
+            # Check for existing identical triple
+            existing = conn.execute(
+                "SELECT id FROM triples WHERE subject=? AND predicate=? AND object=? AND valid_to IS NULL",
+                (sub_id, pred, obj_id),
+            ).fetchone()
 
-        if existing:
-            return existing[0]  # Already exists and still valid
+            if existing:
+                return existing[0]  # Already exists and still valid
 
-        ts = datetime.now(tz=UTC).isoformat()
-        hash_input = f"{valid_from}{ts}".encode()
-        triple_id = f"t_{sub_id}_{pred}_{obj_id}_{hashlib.md5(hash_input, usedforsecurity=False).hexdigest()[:8]}"
+            ts = datetime.now(tz=UTC).isoformat()
+            hash_input = f"{valid_from}{ts}".encode()
+            triple_id = f"t_{sub_id}_{pred}_{obj_id}_{hashlib.sha256(hash_input).hexdigest()[:12]}"
 
-        conn.execute(
-            """INSERT INTO triples (id, subject, predicate, object, valid_from, valid_to, confidence, source_closet, source_file)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                triple_id,
-                sub_id,
-                pred,
-                obj_id,
-                valid_from,
-                valid_to,
-                confidence,
-                source_closet,
-                source_file,
-            ),
-        )
-        conn.commit()
+            conn.execute(
+                """INSERT INTO triples (id, subject, predicate, object, valid_from, valid_to, confidence, source_closet, source_file)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    triple_id,
+                    sub_id,
+                    pred,
+                    obj_id,
+                    valid_from,
+                    valid_to,
+                    confidence,
+                    source_closet,
+                    source_file,
+                ),
+            )
 
         return triple_id
 
@@ -184,11 +184,11 @@ class KnowledgeGraph:
         ended = ended or datetime.now(tz=UTC).date().isoformat()
 
         conn = self._conn()
-        conn.execute(
-            "UPDATE triples SET valid_to=? WHERE subject=? AND predicate=? AND object=? AND valid_to IS NULL",
-            (ended, sub_id, pred, obj_id),
-        )
-        conn.commit()
+        with conn:
+            conn.execute(
+                "UPDATE triples SET valid_to=? WHERE subject=? AND predicate=? AND object=? AND valid_to IS NULL",
+                (ended, sub_id, pred, obj_id),
+            )
 
     # ── Query operations ──────────────────────────────────────────────────
 

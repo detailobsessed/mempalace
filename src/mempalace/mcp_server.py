@@ -465,7 +465,7 @@ def tool_diary_write(agent_name: str, entry: str, topic: str = "general"):
         return _no_palace()
 
     now = datetime.now(tz=UTC)
-    short_hash = hashlib.md5(entry[:50].encode(), usedforsecurity=False).hexdigest()[:8]
+    short_hash = hashlib.sha256(entry[:50].encode()).hexdigest()[:12]
     entry_id = f"diary_{wing}_{now.strftime('%Y%m%d_%H%M%S')}_{short_hash}"
 
     try:

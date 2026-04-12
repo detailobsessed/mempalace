@@ -175,3 +175,59 @@ class TestSeedFromEntityFacts:
         results = kg.query_entity("Alice", direction="outgoing")
         predicates = {r["predicate"] for r in results}
         assert "married_to" in predicates
+
+
+class TestTripleIdHashing:
+    """Triple IDs must use SHA-256 (not MD5) for collision resistance."""
+
+    def test_triple_id_uses_sha256_length(self, kg):
+        triple_id = kg.add_triple("Alice", "knows", "Bob", valid_from="2026-01-01")
+        # Format: t_{sub}_{pred}_{obj}_{hash} — extract hash suffix
+        parts = triple_id.split("_")
+        hash_suffix = parts[-1]
+        assert len(hash_suffix) == 12, f"Expected 12-char sha256 hash suffix, got {len(hash_suffix)}: {hash_suffix}"
+
+    def test_no_md5_in_knowledge_graph(self):
+        """Ensure knowledge_graph module doesn't use md5 anywhere."""
+        import inspect
+
+        from mempalace import knowledge_graph
+
+        source = inspect.getsource(knowledge_graph)
+        assert "hashlib.md5" not in source, "knowledge_graph.py still uses hashlib.md5"
+
+
+class TestTransactionSafety:
+    """Database writes must use context manager for transaction safety."""
+
+    def test_add_entity_rolls_back_on_error(self, tmp_path):
+        """If an error occurs mid-transaction, no partial state should persist."""
+        import contextlib
+
+        from mempalace.knowledge_graph import KnowledgeGraph
+
+        kg = KnowledgeGraph(db_path=str(tmp_path / "tx_test.sqlite3"))
+
+        # Corrupt the table to force an error after connection is obtained
+        kg._conn().execute("DROP TABLE entities")
+        kg._conn().commit()
+
+        with contextlib.suppress(Exception):
+            kg.add_entity("Ghost", "person")
+
+        # Re-create table to query — if `with conn:` was used, the DROP is committed
+        # but the INSERT would have failed atomically
+        kg._conn().execute("CREATE TABLE IF NOT EXISTS entities (id TEXT PRIMARY KEY, name TEXT, type TEXT, properties TEXT)")
+        result = kg._conn().execute("SELECT COUNT(*) FROM entities WHERE name='Ghost'").fetchone()
+        assert result[0] == 0, "Partial entity persisted despite failed transaction"
+
+    def test_no_manual_commit_in_write_methods(self):
+        """Write methods should use `with conn:` not manual commit()."""
+        import inspect
+
+        from mempalace.knowledge_graph import KnowledgeGraph
+
+        for method_name in ("add_entity", "add_triple", "invalidate"):
+            method = getattr(KnowledgeGraph, method_name)
+            source = inspect.getsource(method)
+            assert "conn.commit()" not in source, f"{method_name} uses manual conn.commit() instead of `with conn:` context manager"
