@@ -62,6 +62,14 @@ This takes precedence over the installed marketplace version. Changes are picked
 
 The plugin version in `plugin.json` is only bumped on intentional plugin releases — not on every library version bump.
 
+## Fork Divergences
+
+This fork (detailobsessed/mempalace) differs from upstream (milla-jovovich/mempalace) in:
+
+- **Source layout**: `src/mempalace/` (src layout) instead of `mempalace/` (flat layout)
+- **MCP entry point**: `mempalace-mcp-server` (uv tool entry point) instead of `python3 -m mempalace.mcp_server`
+- **Package manager**: `uv` instead of `pip`
+
 ## MCP Server
 
 The plugin automatically configures a local MCP server with 19 tools for storing, searching, and managing memories. No manual MCP setup is required.
