@@ -225,9 +225,12 @@ def remove_hooks() -> None:
 
     for hook_type in list(hooks):
         entries = hooks[hook_type]
-        before = len(entries)
-        entries[:] = [entry for entry in entries if not any(_is_mempalace_hook(h.get("command", "")) for h in entry.get("hooks", []))]
-        total_removed += before - len(entries)
+        for entry in entries:
+            inner = entry.get("hooks", [])
+            original_len = len(inner)
+            inner[:] = [h for h in inner if not _is_mempalace_hook(h.get("command", ""))]
+            total_removed += original_len - len(inner)
+        entries[:] = [e for e in entries if e.get("hooks", [])]
         if not entries:
             del hooks[hook_type]
 

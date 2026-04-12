@@ -330,6 +330,91 @@ class TestRemoveHooks:
 
 
 # ---------------------------------------------------------------------------
+# remove_hooks — command-level filtering
+# ---------------------------------------------------------------------------
+
+
+class TestRemoveHooksCommandLevel:
+    """Tests for command-level (not entry-level) hook filtering."""
+
+    def test_mixed_entry_preserves_non_mempalace_commands(self, fake_home):
+        """When mempalace and non-mempalace commands share an entry, only mempalace commands are removed."""
+        settings = {
+            "hooks": {
+                "Stop": [
+                    {
+                        "hooks": [
+                            {"type": "command", "command": "/other/tool.sh"},
+                            {"type": "command", "command": "/path/mempal-stop-hook.sh"},
+                        ]
+                    },
+                ],
+            }
+        }
+        setup_claude.CLAUDE_SETTINGS.write_text(json.dumps(settings), encoding="utf-8")
+
+        setup_claude.remove_hooks()
+
+        result = json.loads(setup_claude.CLAUDE_SETTINGS.read_text(encoding="utf-8"))
+        assert len(result["hooks"]["Stop"]) == 1
+        remaining = result["hooks"]["Stop"][0]["hooks"]
+        assert len(remaining) == 1
+        assert remaining[0]["command"] == "/other/tool.sh"
+
+    def test_mixed_entry_drops_entry_when_all_commands_removed(self, fake_home):
+        """An entry with only mempalace commands is removed entirely."""
+        settings = {
+            "hooks": {
+                "Stop": [
+                    {
+                        "hooks": [
+                            {"type": "command", "command": "/path/mempal-stop-hook.sh"},
+                            {"type": "command", "command": "/old/mempal_save_hook.sh"},
+                        ]
+                    },
+                ],
+            }
+        }
+        setup_claude.CLAUDE_SETTINGS.write_text(json.dumps(settings), encoding="utf-8")
+
+        setup_claude.remove_hooks()
+
+        result = json.loads(setup_claude.CLAUDE_SETTINGS.read_text(encoding="utf-8"))
+        assert "hooks" not in result
+
+    def test_mixed_entries_across_hook_types(self, fake_home):
+        """Command-level filtering works correctly across multiple hook types."""
+        settings = {
+            "hooks": {
+                "Stop": [
+                    {
+                        "hooks": [
+                            {"type": "command", "command": "/other/tool.sh"},
+                            {"type": "command", "command": "/path/mempal-stop-hook.sh"},
+                        ]
+                    },
+                ],
+                "PreCompact": [
+                    {
+                        "hooks": [
+                            {"type": "command", "command": "/path/mempal-precompact-hook.sh"},
+                        ]
+                    },
+                ],
+            }
+        }
+        setup_claude.CLAUDE_SETTINGS.write_text(json.dumps(settings), encoding="utf-8")
+
+        setup_claude.remove_hooks()
+
+        result = json.loads(setup_claude.CLAUDE_SETTINGS.read_text(encoding="utf-8"))
+        # PreCompact fully removed, Stop entry preserved with non-mempalace command
+        assert "PreCompact" not in result["hooks"]
+        assert len(result["hooks"]["Stop"]) == 1
+        assert result["hooks"]["Stop"][0]["hooks"][0]["command"] == "/other/tool.sh"
+
+
+# ---------------------------------------------------------------------------
 # uninstall_uv_tool
 # ---------------------------------------------------------------------------
 
