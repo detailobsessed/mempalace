@@ -892,7 +892,7 @@ def handle_request(request):  # noqa: PLR0911, C901
         }
     if method == "tools/call":
         tool_name = params.get("name")
-        tool_args = params.get("arguments", {})
+        tool_args = params.get("arguments") or {}
         if tool_name not in TOOLS:
             return {
                 "jsonrpc": "2.0",
