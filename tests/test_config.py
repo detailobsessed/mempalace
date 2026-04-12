@@ -64,6 +64,41 @@ class TestConfigInit:
         assert data["palace_path"] == "/my/custom/path"
 
 
+class TestConfigPermissions:
+    """Config init must restrict file permissions to owner only."""
+
+    def test_init_sets_dir_permissions(self, tmp_path):
+        from mempalace.config import MempalaceConfig
+
+        config_dir = tmp_path / "secure_config"
+        cfg = MempalaceConfig(config_dir=str(config_dir))
+        cfg.init()
+        mode = config_dir.stat().st_mode & 0o777
+        assert mode == 0o700, f"Config dir should be 0o700, got {oct(mode)}"
+
+    def test_init_sets_file_permissions(self, tmp_path):
+        from mempalace.config import MempalaceConfig
+
+        config_dir = tmp_path / "secure_config"
+        cfg = MempalaceConfig(config_dir=str(config_dir))
+        cfg.init()
+        config_file = config_dir / "config.json"
+        mode = config_file.stat().st_mode & 0o777
+        assert mode == 0o600, f"Config file should be 0o600, got {oct(mode)}"
+
+    def test_save_people_map_sets_permissions(self, tmp_path):
+        from mempalace.config import MempalaceConfig
+
+        config_dir = tmp_path / "secure_config"
+        cfg = MempalaceConfig(config_dir=str(config_dir))
+        cfg.save_people_map({"alice": "Alice Smith"})
+        people_file = config_dir / "people_map.json"
+        dir_mode = config_dir.stat().st_mode & 0o777
+        file_mode = people_file.stat().st_mode & 0o777
+        assert dir_mode == 0o700, f"Config dir should be 0o700, got {oct(dir_mode)}"
+        assert file_mode == 0o600, f"People map file should be 0o600, got {oct(file_mode)}"
+
+
 class TestPeopleMap:
     def test_reads_people_map(self, tmp_path):
         people = {"bob": "Robert", "ali": "Alice"}

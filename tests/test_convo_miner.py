@@ -96,3 +96,44 @@ class TestDetectConvoRoom:
     def test_general_fallback(self):
         content = "The weather is nice today and I had a good lunch."
         assert detect_convo_room(content) == "general"
+
+
+class TestScanConvosSafety:
+    """scan_convos must skip symlinks and oversized files."""
+
+    def test_skips_symlinks(self, tmp_path):
+        real_file = tmp_path / "real.json"
+        real_file.write_text('{"messages": []}', encoding="utf-8")
+        link_file = tmp_path / "link.json"
+        link_file.symlink_to(real_file)
+
+        from mempalace.convo_miner import scan_convos
+
+        result = scan_convos(str(tmp_path))
+        paths = [p.name for p in result]
+        assert "real.json" in paths
+        assert "link.json" not in paths, "scan_convos should skip symlinks"
+
+    def test_skips_oversized_files(self, tmp_path):
+        big_file = tmp_path / "huge.json"
+        # Create a file just over 10MB
+        big_file.write_bytes(b"x" * (10 * 1024 * 1024 + 1))
+
+        from mempalace.convo_miner import scan_convos
+
+        result = scan_convos(str(tmp_path))
+        paths = [p.name for p in result]
+        assert "huge.json" not in paths, "scan_convos should skip files > 10MB"
+
+
+class TestConvoDrawerIdHashing:
+    """Conversation drawer IDs must use SHA-256."""
+
+    def test_no_md5_in_convo_miner(self):
+        """Ensure convo_miner module doesn't use md5 anywhere."""
+        import inspect
+
+        from mempalace import convo_miner
+
+        source = inspect.getsource(convo_miner)
+        assert "hashlib.md5" not in source, "convo_miner.py still uses hashlib.md5"

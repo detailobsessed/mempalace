@@ -324,3 +324,28 @@ class TestGitignoreMatcher:
         matcher = GitignoreMatcher.from_dir(tmp_path)
         assert matcher.matches(tmp_path / "src" / "module.js", is_dir=False) is None
         assert matcher.matches(tmp_path / "src" / "module.py", is_dir=False) is True
+
+
+class TestDrawerIdHashing:
+    """Drawer IDs must use SHA-256 (not MD5) for collision resistance."""
+
+    def test_drawer_id_uses_sha256_length(self, collection):
+        """SHA-256 hex[:24] produces a 24-char suffix, not MD5's 16-char."""
+        from mempalace.miner import add_drawer
+
+        add_drawer(collection, "test_wing", "test_room", "hello world", "/tmp/test.txt", 0, "test")
+        ids = collection.get()["ids"]
+        assert len(ids) == 1
+        # Format: drawer_{wing}_{room}_{hash} — extract hash suffix
+        parts = ids[0].split("_")
+        hash_suffix = parts[-1]
+        assert len(hash_suffix) == 24, f"Expected 24-char sha256 hash suffix, got {len(hash_suffix)}: {hash_suffix}"
+
+    def test_no_md5_in_miner(self):
+        """Ensure miner module doesn't use md5 anywhere."""
+        import inspect
+
+        from mempalace import miner
+
+        source = inspect.getsource(miner)
+        assert "hashlib.md5" not in source, "miner.py still uses hashlib.md5"

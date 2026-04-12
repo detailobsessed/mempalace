@@ -899,3 +899,27 @@ class TestHealthCheck:
         result = mcp_server.tool_status()
         assert "warnings" in result
         assert "total_drawers" in result
+
+
+class TestDiaryIdHashing:
+    """Diary entry IDs must use SHA-256 (not MD5)."""
+
+    def test_diary_entry_id_uses_sha256_length(self, mcp_palace):
+        from mempalace import mcp_server
+
+        result = mcp_server.tool_diary_write("TestAgent", "Today I learned something.")
+        assert result["success"]
+        entry_id = result["entry_id"]
+        # Format: diary_{wing}_{datetime}_{hash} — extract hash suffix
+        parts = entry_id.split("_")
+        hash_suffix = parts[-1]
+        assert len(hash_suffix) == 12, f"Expected 12-char sha256 hash suffix, got {len(hash_suffix)}: {hash_suffix}"
+
+    def test_no_md5_in_mcp_server(self):
+        """Ensure mcp_server module doesn't use md5 anywhere."""
+        import inspect
+
+        from mempalace import mcp_server
+
+        source = inspect.getsource(mcp_server)
+        assert "hashlib.md5" not in source, "mcp_server.py still uses hashlib.md5"
