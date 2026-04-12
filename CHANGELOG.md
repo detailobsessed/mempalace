@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 <!-- version list -->
 
+## v0.0.7 (2026-04-12)
+
+### Bug Fixes
+
+- Security hardening — sha256 IDs, transaction safety, file guards, permissions
+  ([#31](https://github.com/detailobsessed/mempalace/pull/31),
+  [`b41a76d`](https://github.com/detailobsessed/mempalace/commit/b41a76ddf6d929de6020b204bc38928783346ffb))
+
+### Chores
+
+- Update documentation and memories ([#30](https://github.com/detailobsessed/mempalace/pull/30),
+  [`b95f085`](https://github.com/detailobsessed/mempalace/commit/b95f085b68005a4a4ce8a3dc05c4e7299c0a5346))
+
+
 ## v0.0.6 (2026-04-12)
 
 ### Bug Fixes
