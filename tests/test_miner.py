@@ -2,7 +2,15 @@
 
 from pathlib import Path
 
-from mempalace.miner import GitignoreMatcher, add_drawer, chunk_text, detect_room, process_file, scan_project
+from mempalace.miner import (
+    GitignoreMatcher,
+    add_drawer,
+    chunk_text,
+    detect_room,
+    file_already_mined,
+    process_file,
+    scan_project,
+)
 
 
 class TestChunkText:
@@ -371,7 +379,7 @@ class TestDrawerIdHashing:
     def test_drawer_id_uses_sha256_length(self, collection):
         """SHA-256 hex[:24] produces a 24-char suffix, not MD5's 16-char."""
 
-        add_drawer(collection, "test_wing", "test_room", "hello world", "/tmp/test.txt", 0, "test")
+        add_drawer(collection, "test_wing", "test_room", "hello world", "/tmp/test.txt", 0, "test", source_mtime=0.0)
         ids = collection.get()["ids"]
         assert len(ids) == 1
         # Format: drawer_{wing}_{room}_{hash} — extract hash suffix
@@ -387,3 +395,37 @@ class TestDrawerIdHashing:
 
         source = inspect.getsource(miner)
         assert "hashlib.md5" not in source, "miner.py still uses hashlib.md5"
+
+
+class TestMtimeRemine:
+    """Mtime tracking ensures modified files get re-mined."""
+
+    def test_file_already_mined_false_when_no_drawers(self, collection):
+        assert file_already_mined(collection, "/nonexistent.py", 100.0) is False
+
+    def test_file_already_mined_true_when_mtime_unchanged(self, collection):
+        add_drawer(collection, "w", "r", "x" * 60, "/f.py", 0, "a", source_mtime=100.0)
+        assert file_already_mined(collection, "/f.py", 100.0) is True
+
+    def test_file_already_mined_false_when_mtime_newer(self, collection):
+        add_drawer(collection, "w", "r", "x" * 60, "/f.py", 0, "a", source_mtime=100.0)
+        assert file_already_mined(collection, "/f.py", 200.0) is False
+
+    def test_file_already_mined_false_when_mtime_missing(self, collection):
+        """Legacy drawers without source_mtime should trigger re-mine."""
+        collection.add(
+            ids=["legacy_1"],
+            documents=["old content"],
+            metadatas=[{"wing": "w", "room": "r", "source_file": "/f.py", "chunk_index": 0}],
+        )
+        assert file_already_mined(collection, "/f.py", 100.0) is False
+
+    def test_process_file_stores_source_mtime(self, tmp_path, collection):
+        source = tmp_path / "hello.py"
+        source.write_text("content here\n" * 30, encoding="utf-8")
+        rooms = [{"name": "general", "keywords": []}]
+        count = process_file(source, tmp_path, collection, "w", rooms, "a", dry_run=False)
+        assert count > 0
+        meta = collection.get(include=["metadatas"])["metadatas"][0]
+        assert "source_mtime" in meta
+        assert isinstance(meta["source_mtime"], float)
