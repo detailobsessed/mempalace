@@ -30,6 +30,15 @@ PLUGIN_DIR = REPO_ROOT / ".claude-plugin"
 CLAUDE_SETTINGS = Path.home() / ".claude" / "settings.json"
 CLAUDE_MD = Path.home() / ".claude" / "CLAUDE.md"
 
+# Hook script names from all eras — old underscore style and current hyphen style.
+MEMPALACE_HOOK_SCRIPTS = (
+    "mempal_save_hook.sh",
+    "mempal_precompact_hook.sh",
+    "mempal-stop-hook.sh",
+    "mempal-precompact-hook.sh",
+    "mempal-sessionstart-hook.sh",
+)
+
 MEMPALACE_CLAUDE_MD = """\
 ## MemPalace
 
@@ -117,65 +126,6 @@ def register_plugin() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Legacy MCP registration (kept for migration/cleanup)
-# ---------------------------------------------------------------------------
-
-
-def register_mcp(python_path: str) -> None:
-    """Register mempalace as a global MCP server via the claude CLI.
-
-    If a mempalace MCP server is already registered but uses a different
-    command (e.g. PyPI instead of local fork), it is removed and re-added.
-    """
-    print("Registering MCP server...")
-
-    claude = shutil.which("claude")
-    if not claude:
-        print("  ! claude CLI not found — skipping MCP registration.")
-        print("    Install it from https://claude.ai/download and re-run.")
-        return
-
-    expected_command = f"{python_path} -m mempalace.mcp_server"
-
-    result = subprocess.run(
-        [claude, "mcp", "list"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if "mempalace" in result.stdout:
-        if expected_command in result.stdout:
-            print("  ✓ Already registered with correct command — skipping.")
-            return
-        print("  ! Registered with wrong command — replacing...")
-        rm = subprocess.run(
-            [claude, "mcp", "remove", "mempalace", "-s", "user"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if rm.returncode != 0:
-            print(f"  ⚠ Failed to remove old registration: {rm.stderr.strip()}")
-
-    subprocess.run(
-        [
-            claude,
-            "mcp",
-            "add",
-            "mempalace",
-            "-s",
-            "user",
-            "--",
-            python_path,
-            "-m",
-            "mempalace.mcp_server",
-        ],
-        check=True,
-    )
-    print(f"  ✓ Registered  ({expected_command})")
-
-
-# ---------------------------------------------------------------------------
 # CLAUDE.md setup
 # ---------------------------------------------------------------------------
 
@@ -230,88 +180,6 @@ def unregister_plugin() -> None:
             print(f"  ⚠ Failed to remove plugin: {stderr}")
 
 
-def unregister_mcp() -> None:
-    """Remove the mempalace MCP server registration (legacy cleanup)."""
-    print("Removing legacy MCP server...")
-    claude = shutil.which("claude")
-    if not claude:
-        print("  ! claude CLI not found — skipping.")
-        return
-
-    result = subprocess.run(
-        [claude, "mcp", "list"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if "mempalace" not in result.stdout:
-        print("  ✓ Not registered — nothing to remove.")
-        return
-
-    rm = subprocess.run(
-        [claude, "mcp", "remove", "mempalace", "-s", "user"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if rm.returncode == 0:
-        print("  ✓ Removed legacy MCP server registration")
-    else:
-        print(f"  ⚠ Failed to remove: {rm.stderr.strip()}")
-
-
-def _hook_matches_mempalace(command: str, script_name: str) -> bool:
-    """Check if a hook command refers to a mempalace hook by filename."""
-    return command.endswith("/" + script_name) or command == script_name
-
-
-def _remove_old_hooks(entries: list[dict], script_name: str) -> int:
-    """Remove any existing mempalace hook entries matching the script name.
-
-    Returns the number of entries removed.
-    """
-    before = len(entries)
-    entries[:] = [
-        entry for entry in entries if not any(_hook_matches_mempalace(h.get("command", ""), script_name) for h in entry.get("hooks", []))
-    ]
-    return before - len(entries)
-
-
-def remove_hooks() -> None:
-    """Remove mempalace hooks from ~/.claude/settings.json (legacy cleanup)."""
-    print("Removing legacy hooks...")
-    if not CLAUDE_SETTINGS.exists():
-        print("  ✓ No settings.json — nothing to remove.")
-        return
-
-    with CLAUDE_SETTINGS.open(encoding="utf-8") as f:
-        settings = json.load(f)
-
-    hooks = settings.get("hooks", {})
-    total_removed = 0
-
-    for hook_type in ("Stop", "PreCompact"):
-        entries = hooks.get(hook_type, [])
-        for script_name in ("mempal_save_hook.sh", "mempal_precompact_hook.sh"):
-            total_removed += _remove_old_hooks(entries, script_name)
-        # Clean up empty arrays
-        if not entries:
-            hooks.pop(hook_type, None)
-
-    # Clean up empty hooks dict
-    if not hooks:
-        settings.pop("hooks", None)
-
-    with CLAUDE_SETTINGS.open("w", encoding="utf-8") as f:
-        json.dump(settings, f, indent=2)
-        f.write("\n")
-
-    if total_removed:
-        print(f"  ✓ Removed {total_removed} legacy hook(s)")
-    else:
-        print("  ✓ No legacy mempalace hooks found.")
-
-
 def remove_claude_md() -> None:
     """Remove the MemPalace section from ~/.claude/CLAUDE.md."""
     print("Removing CLAUDE.md section...")
@@ -335,6 +203,47 @@ def remove_claude_md() -> None:
 
     CLAUDE_MD.write_text(cleaned, encoding="utf-8")
     print("  ✓ MemPalace section removed")
+
+
+def _is_mempalace_hook(command: str) -> bool:
+    """Check if a hook command refers to a mempalace hook script."""
+    return any(("/" + s) in command or command == s or command.endswith(" " + s) for s in MEMPALACE_HOOK_SCRIPTS)
+
+
+def remove_hooks() -> None:
+    """Remove any mempalace hooks from ~/.claude/settings.json."""
+    print("Removing hooks from settings.json...")
+    if not CLAUDE_SETTINGS.exists():
+        print("  ✓ No settings.json — nothing to remove.")
+        return
+
+    with CLAUDE_SETTINGS.open(encoding="utf-8") as f:
+        settings = json.load(f)
+
+    hooks = settings.get("hooks", {})
+    total_removed = 0
+
+    for hook_type in list(hooks):
+        entries = hooks[hook_type]
+        for entry in entries:
+            inner = entry.get("hooks", [])
+            original_len = len(inner)
+            inner[:] = [h for h in inner if not _is_mempalace_hook(h.get("command", ""))]
+            total_removed += original_len - len(inner)
+        entries[:] = [e for e in entries if e.get("hooks", [])]
+        if not entries:
+            del hooks[hook_type]
+
+    if not hooks:
+        settings.pop("hooks", None)
+
+    if total_removed:
+        with CLAUDE_SETTINGS.open("w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2)
+            f.write("\n")
+        print(f"  ✓ Removed {total_removed} hook(s)")
+    else:
+        print("  ✓ No mempalace hooks found.")
 
 
 def uninstall_uv_tool() -> None:
@@ -368,13 +277,16 @@ def uninstall() -> None:
 
     unregister_plugin()
     print()
-    unregister_mcp()
-    print()
     remove_hooks()
     print()
     remove_claude_md()
     print()
     uninstall_uv_tool()
+
+    palace_dir = Path.home() / ".mempalace"
+    if palace_dir.exists():
+        print(f"\nNote: Palace data at {palace_dir} was left intact.")
+        print("      To remove it manually: rm -rf ~/.mempalace")
 
     print("\nDone! Restart Claude Code for changes to take effect.")
 
@@ -406,13 +318,7 @@ def main() -> None:
     register_plugin()
     print()
 
-    # Step 3: Clean up any legacy manual registrations
-    unregister_mcp()
-    print()
-    remove_hooks()
-    print()
-
-    # Step 4: CLAUDE.md awareness
+    # Step 3: CLAUDE.md awareness
     setup_claude_md()
 
     print("\nDone! Restart Claude Code for changes to take effect.")
