@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 <!-- version list -->
 
+## v0.0.10 (2026-04-12)
+
+### Bug Fixes
+
+- MCP null args hang, repair infinite recursion, OOM on large files
+  ([#36](https://github.com/detailobsessed/mempalace/pull/36),
+  [`f787c57`](https://github.com/detailobsessed/mempalace/commit/f787c572ee677499b229c55918f27037d033a6a6))
+
+- Mitigate system prompt contamination in search queries
+  ([#34](https://github.com/detailobsessed/mempalace/pull/34),
+  [`9b61b80`](https://github.com/detailobsessed/mempalace/commit/9b61b80d732594e43c1c9948c5ed23c251a84a56))
+
+
 ## v0.0.9 (2026-04-12)
 
 ### Bug Fixes
