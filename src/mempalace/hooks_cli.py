@@ -63,8 +63,7 @@ def _is_user_turn(entry: dict) -> bool:
     if entry.get("type") == "event_msg":
         payload = entry.get("payload", {})
         if isinstance(payload, dict) and payload.get("type") == "user_message":
-            msg_text = payload.get("message", "")
-            return isinstance(msg_text, str) and not _is_command_message(msg_text)
+            return not _is_command_message(payload.get("message", ""))
     return False
 
 
