@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 <!-- version list -->
 
+## v0.0.12 (2026-04-12)
+
+### Bug Fixes
+
+- Stage uv.lock in semantic-release build_command
+  ([#42](https://github.com/detailobsessed/mempalace/pull/42),
+  [`7a47e99`](https://github.com/detailobsessed/mempalace/commit/7a47e991187caa4785ca2c8971c69bf3f0df4f3b))
+
+### Chores
+
+- Update template ([#41](https://github.com/detailobsessed/mempalace/pull/41),
+  [`9bbea69`](https://github.com/detailobsessed/mempalace/commit/9bbea6994230a5f23c6bd42b3fff47a9e81b55cb))
+
+- Update uv.lock for v0.0.11
+  ([`842837b`](https://github.com/detailobsessed/mempalace/commit/842837b627c6f8fa4cee43bd3e965987128041ac))
+
+
 ## v0.0.11 (2026-04-12)
 
 ### Bug Fixes
