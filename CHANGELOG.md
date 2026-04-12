@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 <!-- version list -->
 
+## v0.0.8 (2026-04-12)
+
+### Bug Fixes
+
+- Purge stale drawers before re-mine to avoid hnswlib segfault
+  ([#32](https://github.com/detailobsessed/mempalace/pull/32),
+  [`4704ff3`](https://github.com/detailobsessed/mempalace/commit/4704ff3a3ae900df63881948aea104b91f4ecc8b))
+
+### Chores
+
+- Update project template to 0.33.11 ([#35](https://github.com/detailobsessed/mempalace/pull/35),
+  [`3334fac`](https://github.com/detailobsessed/mempalace/commit/3334fac091a56c8b27d735049d85e16e786e9d17))
+
+
 ## v0.0.7 (2026-04-12)
 
 ### Bug Fixes
