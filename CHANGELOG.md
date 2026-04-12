@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 <!-- version list -->
 
+## v0.0.9 (2026-04-12)
+
+### Bug Fixes
+
+- Prevent HNSW index bloat — add() to upsert() in convo_miner, add repair/dedup modules
+  ([#33](https://github.com/detailobsessed/mempalace/pull/33),
+  [`30d6236`](https://github.com/detailobsessed/mempalace/commit/30d6236da63ba5bb2a93055bc0fcdcadfab4b875))
+
+
 ## v0.0.8 (2026-04-12)
 
 ### Bug Fixes

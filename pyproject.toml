@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "mempalace"
-version = "0.0.8"
+version = "0.0.9"
 description = "Give your AI a memory — mine projects and conversations into a searchable palace. No API key required."
 readme = "README.md"
 requires-python = ">=3.14"
