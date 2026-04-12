@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 <!-- version list -->
 
+## v0.0.6 (2026-04-12)
+
+### Bug Fixes
+
+- Close chromadb PersistentClient in test fixtures to prevent ResourceWarning
+  ([#29](https://github.com/detailobsessed/mempalace/pull/29),
+  [`04c6ffb`](https://github.com/detailobsessed/mempalace/commit/04c6ffbb897c09f3db9040f109749a213fadb3c5))
+
+### Chores
+
+- Add dev-reload script for reinstalling CLI locally
+  ([`33bc098`](https://github.com/detailobsessed/mempalace/commit/33bc09826aff3f8161055cec03a1fc3f5503f216))
+
+- Sync uv.lock with v0.0.5
+  ([`cbb56fd`](https://github.com/detailobsessed/mempalace/commit/cbb56fd6976a9f945a8f44eacf0f6c18887217dd))
+
+- **plugin**: Add local dev docs, reset marketplace version to 0.0.1
+  ([`5a7a082`](https://github.com/detailobsessed/mempalace/commit/5a7a082ffff4a42a8683d11d50754a1c9a29466d))
+
+
 ## v0.0.5 (2026-04-12)
 
 ### Bug Fixes
