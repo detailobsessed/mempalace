@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 <!-- version list -->
 
+## v0.0.13 (2026-04-12)
+
+### Bug Fixes
+
+- Count Codex user_message turns in stop hook
+  ([#38](https://github.com/detailobsessed/mempalace/pull/38),
+  [`1b7c546`](https://github.com/detailobsessed/mempalace/commit/1b7c546ce0ed07592a6f7d55b358f894298fda9c))
+
+
 ## v0.0.12 (2026-04-12)
 
 ### Bug Fixes
