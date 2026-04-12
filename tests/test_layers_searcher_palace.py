@@ -39,6 +39,7 @@ def palace(tmp_path):
             _meta("myproject", "backend", "db.txt", "2026-01-04"),
         ],
     )
+    client.close()
     return palace_path
 
 
@@ -65,6 +66,7 @@ def palace_with_tunnels(tmp_path):
             _meta("myproject", "devops", "e.txt", "2026-01-05", hall="infra"),
         ],
     )
+    client.close()
     return palace_path
 
 
@@ -129,6 +131,7 @@ class TestLayer1:
         palace_path = str(tmp_path / "empty_palace")
         client = chromadb.PersistentClient(path=palace_path)
         client.get_or_create_collection("mempalace_drawers")
+        client.close()
         layer = Layer1(palace_path=palace_path)
         result = layer.generate()
         assert "No memories yet" in result
@@ -145,6 +148,7 @@ class TestLayer1:
                 _meta("w", "r", "hi.txt", "2026-01-02", importance=9),
             ],
         )
+        client.close()
         layer = Layer1(palace_path=palace_path)
         result = layer.generate()
         # High importance should appear first in the output
@@ -370,6 +374,7 @@ class TestBuildGraph:
         client = chromadb.PersistentClient(path=palace_with_tunnels)
         col = client.get_collection("mempalace_drawers")
         nodes, _edges = build_graph(col=col)
+        client.close()
         assert "backend" in nodes
         assert "frontend" in nodes
         assert "devops" in nodes
@@ -381,6 +386,7 @@ class TestBuildGraph:
         client = chromadb.PersistentClient(path=palace_with_tunnels)
         col = client.get_collection("mempalace_drawers")
         _nodes, edges = build_graph(col=col)
+        client.close()
         # backend and frontend each span 2 wings, so edges exist
         assert len(edges) > 0
         rooms_with_edges = {e["room"] for e in edges}
@@ -398,6 +404,7 @@ class TestBuildGraph:
         client = chromadb.PersistentClient(path=palace)
         col = client.get_collection("mempalace_drawers")
         nodes, edges = build_graph(col=col)
+        client.close()
         # Only rooms with 2+ wings produce edges
         for edge in edges:
             room = edge["room"]
@@ -409,6 +416,7 @@ class TestTraverse:
         client = chromadb.PersistentClient(path=palace_with_tunnels)
         col = client.get_collection("mempalace_drawers")
         results = traverse("backend", col=col)
+        client.close()
         assert isinstance(results, list)
         assert results[0]["room"] == "backend"
         assert results[0]["hop"] == 0
@@ -420,6 +428,7 @@ class TestTraverse:
         client = chromadb.PersistentClient(path=palace_with_tunnels)
         col = client.get_collection("mempalace_drawers")
         result = traverse("nonexistent-room", col=col)
+        client.close()
         assert isinstance(result, dict)
         assert "error" in result
 
@@ -427,6 +436,7 @@ class TestTraverse:
         client = chromadb.PersistentClient(path=palace_with_tunnels)
         col = client.get_collection("mempalace_drawers")
         results = traverse("devops", col=col, max_hops=1)
+        client.close()
         assert isinstance(results, list)
         # All results should be within 1 hop
         for r in results:
@@ -438,6 +448,7 @@ class TestFindTunnels:
         client = chromadb.PersistentClient(path=palace_with_tunnels)
         col = client.get_collection("mempalace_drawers")
         tunnels = find_tunnels(col=col)
+        client.close()
         assert len(tunnels) >= 2  # backend and frontend span 2 wings
         for t in tunnels:
             assert len(t["wings"]) >= 2
@@ -446,6 +457,7 @@ class TestFindTunnels:
         client = chromadb.PersistentClient(path=palace_with_tunnels)
         col = client.get_collection("mempalace_drawers")
         tunnels = find_tunnels(wing_a="myproject", wing_b="personal", col=col)
+        client.close()
         assert len(tunnels) >= 1
         for t in tunnels:
             assert "myproject" in t["wings"]
@@ -455,6 +467,7 @@ class TestFindTunnels:
         client = chromadb.PersistentClient(path=palace_with_tunnels)
         col = client.get_collection("mempalace_drawers")
         tunnels = find_tunnels(wing_a="nonexistent", col=col)
+        client.close()
         assert tunnels == []
 
 
@@ -463,6 +476,7 @@ class TestGraphStats:
         client = chromadb.PersistentClient(path=palace_with_tunnels)
         col = client.get_collection("mempalace_drawers")
         stats = graph_stats(col=col)
+        client.close()
         assert stats["total_rooms"] == 3  # backend, frontend, devops
         assert stats["tunnel_rooms"] >= 2  # backend and frontend
         assert stats["total_edges"] >= 1
