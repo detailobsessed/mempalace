@@ -4,7 +4,7 @@ Install or uninstall MemPalace integration for Claude Code.
 
 Sets up:
   - mempalace uv tool   (editable install from this repo)
-  - Claude Code plugin  (claude plugin add .claude-plugin)
+  - Claude Code plugin  (marketplace + plugin install)
 
 Usage:
     python scripts/setup_claude.py              # install
@@ -95,7 +95,7 @@ def find_python() -> str:
 
 
 def register_plugin() -> None:
-    """Register the .claude-plugin as a local Claude Code plugin."""
+    """Register the repo as a marketplace and install the mempalace plugin."""
     print("Registering plugin...")
 
     claude = shutil.which("claude")
@@ -108,21 +108,36 @@ def register_plugin() -> None:
         print(f"  ! .claude-plugin/ not found at {PLUGIN_DIR}")
         return
 
+    # Step 1: Add repo as a local marketplace
     result = subprocess.run(
-        [claude, "plugin", "add", str(PLUGIN_DIR)],
+        [claude, "plugin", "marketplace", "add", str(REPO_ROOT)],
         capture_output=True,
         text=True,
         check=False,
     )
+    stderr = result.stderr.strip()
     if result.returncode == 0:
-        print(f"  ✓ Plugin registered from {PLUGIN_DIR}")
+        print(f"  ✓ Marketplace registered from {REPO_ROOT}")
+    elif "already" in stderr.lower() or "exists" in stderr.lower():
+        print("  ✓ Marketplace already registered — skipping.")
     else:
-        # Plugin may already be registered
-        stderr = result.stderr.strip()
-        if "already" in stderr.lower():
-            print("  ✓ Plugin already registered — skipping.")
-        else:
-            print(f"  ⚠ Plugin registration failed: {stderr}")
+        print(f"  ⚠ Marketplace registration failed: {stderr}")
+        return
+
+    # Step 2: Install the plugin from the marketplace
+    result = subprocess.run(
+        [claude, "plugin", "install", "mempalace"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    stderr = result.stderr.strip()
+    if result.returncode == 0:
+        print("  ✓ Plugin installed")
+    elif "already" in stderr.lower():
+        print("  ✓ Plugin already installed — skipping.")
+    else:
+        print(f"  ⚠ Plugin install failed: {stderr}")
 
 
 # ---------------------------------------------------------------------------
@@ -157,27 +172,42 @@ def setup_claude_md() -> None:
 
 
 def unregister_plugin() -> None:
-    """Remove the mempalace plugin from Claude Code."""
+    """Uninstall the mempalace plugin and remove the marketplace."""
     print("Removing plugin...")
     claude = shutil.which("claude")
     if not claude:
         print("  ! claude CLI not found — skipping.")
         return
 
+    # Step 1: Uninstall the plugin
     result = subprocess.run(
-        [claude, "plugin", "remove", "mempalace"],
+        [claude, "plugin", "uninstall", "mempalace"],
         capture_output=True,
         text=True,
         check=False,
     )
+    stderr = result.stderr.strip()
     if result.returncode == 0:
-        print("  ✓ Plugin removed")
+        print("  ✓ Plugin uninstalled")
+    elif "not found" in stderr.lower() or "not installed" in stderr.lower():
+        print("  ✓ Plugin not installed — nothing to remove.")
     else:
-        stderr = result.stderr.strip()
-        if "not found" in stderr.lower() or "not registered" in stderr.lower():
-            print("  ✓ Plugin not registered — nothing to remove.")
-        else:
-            print(f"  ⚠ Failed to remove plugin: {stderr}")
+        print(f"  ⚠ Failed to uninstall plugin: {stderr}")
+
+    # Step 2: Remove the marketplace
+    result = subprocess.run(
+        [claude, "plugin", "marketplace", "remove", "mempalace"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    stderr = result.stderr.strip()
+    if result.returncode == 0:
+        print("  ✓ Marketplace removed")
+    elif "not found" in stderr.lower():
+        print("  ✓ Marketplace not registered — nothing to remove.")
+    else:
+        print(f"  ⚠ Failed to remove marketplace: {stderr}")
 
 
 def remove_claude_md() -> None:
@@ -314,7 +344,7 @@ def main() -> None:
     find_python()
     print()
 
-    # Step 2: Register as a Claude Code plugin (hooks, MCP, skills, commands)
+    # Step 2: Register marketplace + install plugin (hooks, MCP, skills, commands)
     register_plugin()
     print()
 

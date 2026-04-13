@@ -51,7 +51,7 @@ class TestRegisterPlugin:
         out = capsys.readouterr().out
         assert "claude CLI not found" in out
 
-    def test_registers_plugin(self, fake_home):
+    def test_registers_marketplace_and_installs_plugin(self, fake_home):
         with (
             patch.object(shutil, "which", return_value="/usr/bin/claude"),
             patch("setup_claude.subprocess") as mock_sub,
@@ -60,21 +60,26 @@ class TestRegisterPlugin:
             mock_sub.run.return_value.stderr = ""
             setup_claude.register_plugin()
 
-        call_args = mock_sub.run.call_args[0][0]
-        assert "plugin" in call_args
-        assert "add" in call_args
+        # Should make two calls: marketplace add, then plugin install
+        assert mock_sub.run.call_count == 2
+        marketplace_args = mock_sub.run.call_args_list[0][0][0]
+        assert marketplace_args[1:4] == ["plugin", "marketplace", "add"]
+        install_args = mock_sub.run.call_args_list[1][0][0]
+        assert install_args[1:4] == ["plugin", "install", "mempalace"]
 
-    def test_handles_already_registered(self, fake_home, capsys):
+    def test_skips_install_on_marketplace_failure(self, fake_home, capsys):
         with (
             patch.object(shutil, "which", return_value="/usr/bin/claude"),
             patch("setup_claude.subprocess") as mock_sub,
         ):
             mock_sub.run.return_value.returncode = 1
-            mock_sub.run.return_value.stderr = "already registered"
+            mock_sub.run.return_value.stderr = "some error"
             setup_claude.register_plugin()
 
         out = capsys.readouterr().out
-        assert "already registered" in out.lower()
+        assert "Marketplace registration failed" in out
+        # Only marketplace add was called, not plugin install
+        assert mock_sub.run.call_count == 1
 
     def test_skips_when_no_plugin_dir(self, fake_home, capsys, monkeypatch):
         monkeypatch.setattr(setup_claude, "PLUGIN_DIR", fake_home / "nonexistent")
@@ -98,7 +103,7 @@ class TestUnregisterPlugin:
         out = capsys.readouterr().out
         assert "claude CLI not found" in out
 
-    def test_removes_plugin(self, fake_home):
+    def test_uninstalls_plugin_and_removes_marketplace(self, fake_home):
         with (
             patch.object(shutil, "which", return_value="/usr/bin/claude"),
             patch("setup_claude.subprocess") as mock_sub,
@@ -107,11 +112,14 @@ class TestUnregisterPlugin:
             mock_sub.run.return_value.stderr = ""
             setup_claude.unregister_plugin()
 
-        call_args = mock_sub.run.call_args[0][0]
-        assert "plugin" in call_args
-        assert "remove" in call_args
+        # Should make two calls: plugin uninstall, then marketplace remove
+        assert mock_sub.run.call_count == 2
+        uninstall_args = mock_sub.run.call_args_list[0][0][0]
+        assert uninstall_args[1:4] == ["plugin", "uninstall", "mempalace"]
+        marketplace_args = mock_sub.run.call_args_list[1][0][0]
+        assert marketplace_args[1:5] == ["plugin", "marketplace", "remove", "mempalace"]
 
-    def test_handles_not_found(self, fake_home, capsys):
+    def test_handles_not_installed(self, fake_home, capsys):
         with (
             patch.object(shutil, "which", return_value="/usr/bin/claude"),
             patch("setup_claude.subprocess") as mock_sub,
@@ -121,7 +129,7 @@ class TestUnregisterPlugin:
             setup_claude.unregister_plugin()
 
         out = capsys.readouterr().out
-        assert "not registered" in out.lower()
+        assert "not installed" in out.lower() or "not registered" in out.lower()
 
 
 # ---------------------------------------------------------------------------
