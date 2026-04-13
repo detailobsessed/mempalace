@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 <!-- version list -->
 
+## v0.1.2 (2026-04-13)
+
+### Bug Fixes
+
+- Add mtime-based re-mining to detect modified files
+  ([#47](https://github.com/detailobsessed/mempalace/pull/47),
+  [`453aa39`](https://github.com/detailobsessed/mempalace/commit/453aa392e714f47be0490564136208cf6f096ce1))
+
+- Preserve full AI response and add sentinel for 0-chunk files
+  ([#48](https://github.com/detailobsessed/mempalace/pull/48),
+  [`9d69f33`](https://github.com/detailobsessed/mempalace/commit/9d69f337943baf5c48c89ebb5c35d5295b7452fc))
+
+- Silence ChromaDB telemetry warnings and prevent CoreML segfault
+  ([#46](https://github.com/detailobsessed/mempalace/pull/46),
+  [`cd9b4c4`](https://github.com/detailobsessed/mempalace/commit/cd9b4c4df2fed4a54053b410bd236d52dd0fab5d))
+
+
 ## v0.1.1 (2026-04-13)
 
 ### Bug Fixes
