@@ -420,6 +420,38 @@ class TestMtimeRemine:
         )
         assert file_already_mined(collection, "/f.py", 100.0) is False
 
+    def test_too_small_file_returns_general_room(self, tmp_path, collection):
+        """Too-small files must return 'general' as room, not empty string."""
+        tiny = tmp_path / "tiny.py"
+        tiny.write_text("x", encoding="utf-8")
+        rooms = [{"name": "general", "keywords": []}]
+        count, room = process_file(tiny, tmp_path, collection, "w", rooms, "a", dry_run=False)
+        assert count == 0
+        assert room == "general"
+
+    def test_already_mined_file_returns_general_room(self, tmp_path, collection):
+        """Already-mined files must return 'general' as room."""
+        source = tmp_path / "mined.py"
+        source.write_text("content here\n" * 30, encoding="utf-8")
+        rooms = [{"name": "general", "keywords": []}]
+        # Mine once
+        process_file(source, tmp_path, collection, "w", rooms, "a", dry_run=False)
+        # Second call — already mined
+        count, room = process_file(source, tmp_path, collection, "w", rooms, "a", dry_run=False)
+        assert count == 0
+        assert room == "general"
+
+    def test_unreadable_file_returns_general_room(self, tmp_path, collection):
+        """Unreadable files must return 'general' as room."""
+        bad = tmp_path / "bad.py"
+        bad.write_text("content here\n" * 30, encoding="utf-8")
+        bad.chmod(0o000)
+        rooms = [{"name": "general", "keywords": []}]
+        count, room = process_file(bad, tmp_path, collection, "w", rooms, "a", dry_run=False)
+        assert count == 0
+        assert room == "general"
+        bad.chmod(0o644)  # restore for cleanup
+
     def test_process_file_stores_source_mtime(self, tmp_path, collection):
         source = tmp_path / "hello.py"
         source.write_text("content here\n" * 30, encoding="utf-8")
