@@ -139,10 +139,10 @@ class TestCompressionStats:
 
 class TestCountTokens:
     def test_token_count(self):
-        # Word-based heuristic: ~1.3 tokens per word, min 1
-        assert Dialect.count_tokens("hello world") >= 2
-        assert Dialect.count_tokens("") >= 0  # max(1, ...) returns 1 for empty
-        assert Dialect.count_tokens("one") >= 1
+        # char/3.8 heuristic, min 1
+        assert Dialect.count_tokens("hello world") == int(len("hello world") / 3.8)
+        assert Dialect.count_tokens("") == 1  # max(1, ...) returns 1 for empty
+        assert Dialect.count_tokens("one") == 1  # 3 chars / 3.8 rounds to 0, clamped to 1
 
 
 class TestDecode:

@@ -45,6 +45,16 @@ class TestDetectRoomsFromFolders:
         room_names = {r["name"] for r in rooms}
         assert "analytics" in room_names
 
+    def test_broken_symlink_does_not_crash(self, tmp_path):
+        """Broken symlinks in project dir should not crash detection."""
+        (tmp_path / "src").mkdir()
+        (tmp_path / "broken_link").symlink_to(tmp_path / "nonexistent")
+        rooms = detect_rooms_from_folders(str(tmp_path))
+        # Should still detect src and not raise
+        room_names = {r["name"] for r in rooms}
+        assert "src" in room_names
+        assert "general" in room_names
+
 
 class TestDetectRoomsFromFiles:
     def test_detects_from_filenames(self, tmp_path):

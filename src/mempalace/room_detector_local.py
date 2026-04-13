@@ -93,7 +93,7 @@ FOLDER_ROOM_MAP = {
 }
 
 
-def detect_rooms_from_folders(project_dir: str) -> list:  # noqa: C901
+def detect_rooms_from_folders(project_dir: str) -> list:  # noqa: C901, PLR0912
     """
     Walk the project folder structure.
     Find top-level subdirectories that match known room patterns.
@@ -116,7 +116,11 @@ def detect_rooms_from_folders(project_dir: str) -> list:  # noqa: C901
     }
 
     # Check top-level directories first (most reliable signal)
-    for item in project_path.iterdir():
+    try:
+        top_items = list(project_path.iterdir())
+    except OSError:
+        top_items = []
+    for item in top_items:
         if item.is_dir() and item.name not in SKIP_DIRS:
             name_lower = item.name.lower().replace("-", "_")
             if name_lower in FOLDER_ROOM_MAP:
@@ -130,13 +134,13 @@ def detect_rooms_from_folders(project_dir: str) -> list:  # noqa: C901
                     found_rooms[clean] = item.name
 
     # Walk one level deeper for nested patterns
-    subdirs = [
-        subitem
-        for item in project_path.iterdir()
-        if item.is_dir() and item.name not in SKIP_DIRS
-        for subitem in item.iterdir()
-        if subitem.is_dir() and subitem.name not in SKIP_DIRS
-    ]
+    subdirs = []
+    for item in top_items:
+        if item.is_dir() and item.name not in SKIP_DIRS:
+            try:
+                subdirs.extend(subitem for subitem in item.iterdir() if subitem.is_dir() and subitem.name not in SKIP_DIRS)
+            except OSError:
+                continue
     for subitem in subdirs:
         name_lower = subitem.name.lower().replace("-", "_")
         if name_lower in FOLDER_ROOM_MAP:
