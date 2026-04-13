@@ -476,16 +476,16 @@ def process_file(  # noqa: PLR0913, PLR0917
     source_file = str(filepath)
     source_mtime = Path(filepath).stat().st_mtime
     if not dry_run and file_already_mined(collection, source_file, source_mtime):
-        return (0, "")
+        return (0, "general")
 
     try:
         content = filepath.read_text(encoding="utf-8", errors="replace")
     except OSError:
-        return (0, "")
+        return (0, "general")
 
     content = content.strip()
     if len(content) < MIN_CHUNK_SIZE:
-        return (0, "")
+        return (0, "general")
 
     room = detect_room(filepath, content, rooms, project_path)
     chunks = chunk_text(content, source_file)
