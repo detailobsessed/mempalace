@@ -658,3 +658,66 @@ class TestScanForDetection:
         (venv / "stray.txt").write_text("should skip", encoding="utf-8")
         files = scan_for_detection(str(d))
         assert all(".venv" not in str(f) for f in files)
+
+
+# ============================================================================
+# Sentinel drawer for 0-chunk conversation files
+# ============================================================================
+
+
+class TestSentinelDrawerForEmptyFiles:
+    """Files that produce 0 chunks should get a sentinel so they aren't re-processed."""
+
+    def test_register_empty_file_creates_sentinel(self, tmp_path):
+        """Sentinel makes file_already_mined return True."""
+        from mempalace.convo_miner import _register_empty_file
+
+        palace_path = str(tmp_path / "palace")
+        col = convo_get_collection(palace_path)
+        _register_empty_file(col, "/empty.md", "test_wing", "test_agent")
+        assert convo_file_already_mined(col, "/empty.md") is True
+
+    def test_sentinel_metadata(self, tmp_path):
+        """Sentinel drawer has correct metadata fields."""
+        from mempalace.convo_miner import _register_empty_file
+
+        palace_path = str(tmp_path / "palace")
+        col = convo_get_collection(palace_path)
+        _register_empty_file(col, "/empty2.md", "w", "a")
+        results = col.get(where={"source_file": "/empty2.md"}, include=["metadatas"])
+        meta = results["metadatas"][0]
+        assert meta["room"] == "_sentinel"
+        assert meta["chunk_index"] == -1
+        assert meta["is_sentinel"] == "true"
+        assert meta["extract_mode"] == "sentinel"
+
+    def test_zero_chunk_file_not_reprocessed(self, tmp_path):
+        """A file that yields 0 chunks is skipped on the second run."""
+        cdir = tmp_path / "convos"
+        cdir.mkdir()
+        # Content passes MIN_CHUNK_SIZE (30) but each exchange pair is too short
+        # to produce a chunk, so chunk_exchanges returns []
+        content = "> q?\nyes\n\n" * 6  # 60 chars total, but each pair is ~10 chars
+        (cdir / "nochnk.md").write_text(content, encoding="utf-8")
+        palace_path = str(tmp_path / "palace")
+        mine_convos(convo_dir=str(cdir), palace_path=palace_path, wing="t", agent="t")
+        col = convo_get_collection(palace_path)
+        assert convo_file_already_mined(col, str(cdir / "nochnk.md")) is True
+
+    def test_dry_run_does_not_write_sentinel(self, tmp_path):
+        """Dry run must not write any sentinels."""
+        cdir = tmp_path / "convos"
+        cdir.mkdir()
+        # Content passes MIN_CHUNK_SIZE (30) but each exchange pair is too short
+        # to produce a chunk, so chunk_exchanges returns [] — sentinel path is reached
+        (cdir / "tiny.md").write_text("> q?\nyes\n\n" * 6, encoding="utf-8")
+        palace_path = str(tmp_path / "palace")
+        mine_convos(
+            convo_dir=str(cdir),
+            palace_path=palace_path,
+            wing="t",
+            agent="t",
+            dry_run=True,
+        )
+        col = convo_get_collection(palace_path)
+        assert col.count() == 0

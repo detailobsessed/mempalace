@@ -84,7 +84,7 @@ def _chunk_by_exchange(lines: list) -> list:
                     ai_lines.append(next_line.strip())
                 i += 1
 
-            ai_response = " ".join(ai_lines[:8])
+            ai_response = " ".join(ai_lines)
             content = f"{user_turn}\n{ai_response}" if ai_response else user_turn
 
             if len(content.strip()) > MIN_CHUNK_SIZE:
@@ -225,6 +225,34 @@ def file_already_mined(collection, source_file: str) -> bool:
         return False
 
 
+def _register_empty_file(
+    collection,
+    source_file: str,
+    wing: str,
+    agent: str,
+) -> None:
+    """Write a sentinel drawer so 0-chunk files are not re-processed."""
+    file_hash = hashlib.sha256(source_file.encode()).hexdigest()[:24]
+    drawer_id = f"drawer_{wing}_sentinel_{file_hash}"
+    collection.upsert(
+        documents=["[empty — no extractable chunks]"],
+        ids=[drawer_id],
+        metadatas=[
+            {
+                "wing": wing,
+                "room": "_sentinel",
+                "source_file": source_file,
+                "chunk_index": -1,
+                "added_by": agent,
+                "filed_at": datetime.now(tz=UTC).isoformat(),
+                "ingest_mode": "convos",
+                "extract_mode": "sentinel",
+                "is_sentinel": "true",
+            }
+        ],
+    )
+
+
 # =============================================================================
 # SCAN FOR CONVERSATION FILES
 # =============================================================================
@@ -327,6 +355,8 @@ def mine_convos(  # noqa: C901, PLR0913, PLR0917, PLR0912, PLR0915, PLR0914
             chunks = chunk_exchanges(content)
 
         if not chunks:
+            if not dry_run and collection is not None:
+                _register_empty_file(collection, source_file, wing, agent)
             continue
 
         room = detect_convo_room(content) if extract_mode != "general" else None

@@ -424,7 +424,7 @@ class TestMtimeRemine:
         source = tmp_path / "hello.py"
         source.write_text("content here\n" * 30, encoding="utf-8")
         rooms = [{"name": "general", "keywords": []}]
-        count = process_file(source, tmp_path, collection, "w", rooms, "a", dry_run=False)
+        count, _room = process_file(source, tmp_path, collection, "w", rooms, "a", dry_run=False)
         assert count > 0
         meta = collection.get(include=["metadatas"])["metadatas"][0]
         assert "source_mtime" in meta
