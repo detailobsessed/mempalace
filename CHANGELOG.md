@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 <!-- version list -->
 
+## v0.1.1 (2026-04-13)
+
+### Bug Fixes
+
+- Return room from process_file to fix stats double-detection
+  ([#45](https://github.com/detailobsessed/mempalace/pull/45),
+  [`8ffa9c1`](https://github.com/detailobsessed/mempalace/commit/8ffa9c16e5eda54409a46f7ca70fd4275698c7e2))
+
+### Chores
+
+- Fix audit findings from DOT-467 and DOT-468
+  ([#43](https://github.com/detailobsessed/mempalace/pull/43),
+  [`f6ec569`](https://github.com/detailobsessed/mempalace/commit/f6ec569cb4161e990e5affd134cda8bab051854b))
+
+- Update copier template to 0.34.0 ([#44](https://github.com/detailobsessed/mempalace/pull/44),
+  [`1b0a2b3`](https://github.com/detailobsessed/mempalace/commit/1b0a2b30c796579e21ddcec1a1432a5966150a63))
+
+### Documentation
+
+- Add warning about fake MemPalace websites
+  ([#40](https://github.com/detailobsessed/mempalace/pull/40),
+  [`6574a5f`](https://github.com/detailobsessed/mempalace/commit/6574a5ff410839095ec762b389983935f6d91da1))
+
+
 ## v0.1.0 (2026-04-12)
 
 ### Features
