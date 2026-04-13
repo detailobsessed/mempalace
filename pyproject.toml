@@ -269,7 +269,7 @@ prek = "prek run --all-files"
 
 # Template utilities
 check-template = { shell = "copier check-update || true" }
-update-template = { shell = "copier update --trust . --skip-answered --defaults && uv sync --upgrade && prek autoupdate && echo '  Done'" }
+update-template = { shell = "copier update --trust . --skip-answered --defaults && uv sync --upgrade && prek autoupdate && echo '  ✓ Dependencies upgraded and hook versions updated' && { grep -q 'git add uv.lock CHANGELOG.md' pyproject.toml || echo '  ⚠ WARNING: build_command in pyproject.toml is missing \"git add uv.lock CHANGELOG.md\" — releases will produce stale lockfiles. Add \"git add uv.lock CHANGELOG.md\" to build_command.'; }" }
 
 # Development
 dev-reload = { shell = "bash scripts/dev-reload.sh" }
@@ -288,7 +288,7 @@ watch = "gh run watch"
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
 version_variables = ["src/mempalace/__init__.py:__version__"]
-build_command = "uv lock --upgrade-package mempalace && git add uv.lock && uv build"
+build_command = "uv lock --upgrade-package mempalace && git add uv.lock CHANGELOG.md && uv build"
 allow_zero_version = true
 major_on_zero = false
 commit_message = "chore(release): v{version}"
