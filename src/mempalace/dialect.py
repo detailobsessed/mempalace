@@ -915,17 +915,12 @@ class Dialect:
 
     @staticmethod
     def count_tokens(text: str) -> int:
-        """Estimate token count using word-based heuristic (~1.3 tokens per word).
+        """Estimate token count (~1 token per 3.8 characters).
 
         This is an approximation. For accurate counts, use a real tokenizer
-        like tiktoken. The old len(text)//3 heuristic was wildly inaccurate
-        and made AAAK compression ratios look much better than reality.
+        like tiktoken.
         """
-        words = text.split()
-        # Most English words tokenize to 1-2 tokens; punctuation and
-        # special chars in AAAK (|, +, :) each cost a token.
-        # ~1.3 tokens/word is a conservative average.
-        return max(1, int(len(words) * 1.3))
+        return max(1, int(len(text) / 3.8))
 
     def compression_stats(self, original_text: str, compressed: str) -> dict:
         """Get size comparison stats for a text->AAAK conversion.

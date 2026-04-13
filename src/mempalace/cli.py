@@ -139,9 +139,9 @@ def cmd_split(args):
     from .split_mega_files import main as split_main
 
     # Rebuild argv for split_mega_files argparse
-    argv = ["--source", args.dir]
+    argv = ["--source", str(Path(args.dir).expanduser())]
     if args.output_dir:
-        argv += ["--output-dir", args.output_dir]
+        argv += ["--output-dir", str(Path(args.output_dir).expanduser())]
     if args.dry_run:
         argv.append("--dry-run")
     if args.min_sessions != 2:

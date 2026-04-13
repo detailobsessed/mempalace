@@ -541,6 +541,27 @@ class TestCmdSplit:
             cmd_split(args)
         assert sys.argv == original_argv
 
+    def test_split_expands_tilde_in_dir(self, monkeypatch):
+        """cmd_split must expand ~ in --source and --output-dir."""
+        captured_argv = {}
+
+        def fake_split_main():
+            captured_argv["argv"] = list(sys.argv)
+
+        monkeypatch.setattr("mempalace.split_mega_files.main", fake_split_main)
+
+        args = argparse.Namespace(
+            dir="~/transcripts",
+            output_dir="~/output",
+            dry_run=False,
+            min_sessions=2,
+        )
+        cmd_split(args)
+        source_arg = captured_argv["argv"][2]  # after "mempalace split" and "--source"
+        output_arg = captured_argv["argv"][4]  # after "--output-dir"
+        assert "~" not in source_arg
+        assert "~" not in output_arg
+
 
 # ---------------------------------------------------------------------------
 # cmd_init
