@@ -399,11 +399,24 @@ def get_collection(palace_path: str):
         return client.create_collection("mempalace_drawers")
 
 
-def file_already_mined(collection, source_file: str) -> bool:
-    """Fast check: has this file been filed before?"""
+def file_already_mined(collection, source_file: str, current_mtime: float) -> bool:
+    """Fast check: has this file been filed before and is it unchanged?"""
     try:
-        results = collection.get(where={"source_file": source_file}, limit=1)
-        return len(results.get("ids", [])) > 0
+        results = collection.get(
+            where={"source_file": source_file},
+            limit=1,
+            include=["metadatas"],
+        )
+        ids = results.get("ids", [])
+        if not ids:
+            return False
+        meta = results["metadatas"][0]
+        stored_mtime = meta.get("source_mtime")
+        if stored_mtime is None:
+            return False  # legacy drawer without mtime — force re-mine
+        return abs(float(stored_mtime) - current_mtime) < 0.001
+    except KeyError, TypeError, ValueError:
+        return False
     except Exception:
         return False
 
@@ -416,6 +429,7 @@ def add_drawer(  # noqa: PLR0913, PLR0917
     source_file: str,
     chunk_index: int,
     agent: str,
+    source_mtime: float,
 ):
     """Add one drawer to the palace."""
     drawer_id = f"drawer_{wing}_{room}_{hashlib.sha256((source_file + str(chunk_index)).encode()).hexdigest()[:24]}"
@@ -431,6 +445,7 @@ def add_drawer(  # noqa: PLR0913, PLR0917
                     "chunk_index": chunk_index,
                     "added_by": agent,
                     "filed_at": datetime.now(tz=UTC).isoformat(),
+                    "source_mtime": source_mtime,
                 }
             ],
         )
@@ -457,9 +472,10 @@ def process_file(  # noqa: PLR0913, PLR0917
 ) -> tuple[int, str]:
     """Read, chunk, route, and file one file. Returns (drawer_count, room)."""
 
-    # Skip if already filed
+    # Skip if already filed and unchanged
     source_file = str(filepath)
-    if not dry_run and file_already_mined(collection, source_file):
+    source_mtime = Path(filepath).stat().st_mtime
+    if not dry_run and file_already_mined(collection, source_file, source_mtime):
         return (0, "")
 
     try:
@@ -496,6 +512,7 @@ def process_file(  # noqa: PLR0913, PLR0917
             source_file=source_file,
             chunk_index=chunk["chunk_index"],
             agent=agent,
+            source_mtime=source_mtime,
         )
         if added:
             drawers_added += 1

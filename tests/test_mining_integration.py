@@ -4,6 +4,7 @@ Tests miner, convo_miner, split_mega_files, and entity_detector
 end-to-end with real ChromaDB collections and temp directories.
 """
 
+import os
 from pathlib import Path
 
 import pytest
@@ -137,25 +138,26 @@ class TestGetCollectionAndDrawers:
             source_file="/fake/path.py",
             chunk_index=0,
             agent="test",
+            source_mtime=0.0,
         )
         assert added is True
         assert col.count() == 1
 
     def test_add_drawer_duplicate_silently_skipped(self, palace_path):
         col = get_collection(palace_path)
-        add_drawer(col, "w", "r", "content here", "/f.py", 0, "test")
-        add_drawer(col, "w", "r", "content here", "/f.py", 0, "test")
+        add_drawer(col, "w", "r", "content here", "/f.py", 0, "test", source_mtime=0.0)
+        add_drawer(col, "w", "r", "content here", "/f.py", 0, "test", source_mtime=0.0)
         # Duplicate ID -- returns False or raises and catches
         assert col.count() == 1
 
     def test_file_already_mined_false_initially(self, palace_path):
         col = get_collection(palace_path)
-        assert file_already_mined(col, "/nonexistent.py") is False
+        assert file_already_mined(col, "/nonexistent.py", 0.0) is False
 
     def test_file_already_mined_true_after_add(self, palace_path):
         col = get_collection(palace_path)
-        add_drawer(col, "w", "r", "some content", "/mined.py", 0, "test")
-        assert file_already_mined(col, "/mined.py") is True
+        add_drawer(col, "w", "r", "some content", "/mined.py", 0, "test", source_mtime=100.0)
+        assert file_already_mined(col, "/mined.py", 100.0) is True
 
 
 class TestProcessFile:
@@ -280,6 +282,34 @@ class TestMineEndToEnd:
         mine(project_dir=str(project_dir), palace_path=palace_path, agent="test")
         col2 = get_collection(palace_path)
         assert col2.count() == count_first
+
+    def test_modified_file_gets_remined(self, project_dir, palace_path):
+        """A file modified after mining should be re-mined on the next run."""
+        mine(project_dir=str(project_dir), palace_path=palace_path, agent="test")
+        col = get_collection(palace_path)
+
+        # Pick the first file and grab its original content
+        target = next(project_dir.rglob("*.py"))
+        original_meta = col.get(
+            where={"source_file": str(target)},
+            include=["documents", "metadatas"],
+        )
+        assert original_meta["ids"], "file should have been mined"
+
+        # Modify the file and force mtime advance (HFS+ has 1s resolution)
+        target.write_text("# rewritten\n" + "updated = True\n" * 30, encoding="utf-8")
+        new_mtime = target.stat().st_mtime + 1.0
+        os.utime(target, (new_mtime, new_mtime))
+
+        # Re-mine — modified file should be picked up
+        mine(project_dir=str(project_dir), palace_path=palace_path, agent="test")
+        col2 = get_collection(palace_path)
+        updated = col2.get(
+            where={"source_file": str(target)},
+            include=["documents"],
+        )
+        assert updated["ids"], "file should still have drawers after re-mine"
+        assert "updated = True" in updated["documents"][0]
 
 
 class TestStatus:
