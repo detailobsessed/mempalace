@@ -354,7 +354,7 @@ class TestPurgeBeforeRemine:
         # Mine the file — purge should delete the stale drawers first
         source.write_text("fresh content here\n" * 30, encoding="utf-8")
         rooms = [{"name": "general", "keywords": []}]
-        count = process_file(source, tmp_path, collection, "test_wing", rooms, "agent", dry_run=False)
+        count, _room = process_file(source, tmp_path, collection, "test_wing", rooms, "agent", dry_run=False)
         assert count > 0
 
         # Stale IDs should be gone
