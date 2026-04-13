@@ -126,6 +126,30 @@ class TestScanConvosSafety:
         assert "huge.json" not in paths, "scan_convos should skip files > 10MB"
 
 
+class TestChunkByExchangeNoTruncation:
+    """AI responses must not be truncated regardless of length."""
+
+    def test_long_ai_response_not_truncated(self):
+        """AI responses longer than 8 lines must be fully preserved."""
+        from mempalace.convo_miner import _chunk_by_exchange
+
+        ai_lines = [f"Line {i} of the detailed explanation." for i in range(20)]
+        lines = ["> What is the full explanation?", *ai_lines]
+        chunks = _chunk_by_exchange(lines)
+        assert len(chunks) == 1
+        for line in ai_lines:
+            assert line in chunks[0]["content"]
+
+    def test_short_ai_response_unchanged(self):
+        """Responses under 8 lines still work correctly."""
+        from mempalace.convo_miner import _chunk_by_exchange
+
+        lines = ["> Short question?", "Short answer."]
+        chunks = _chunk_by_exchange(lines)
+        assert len(chunks) == 1
+        assert "Short answer." in chunks[0]["content"]
+
+
 class TestConvoDrawerIdHashing:
     """Conversation drawer IDs must use SHA-256."""
 
