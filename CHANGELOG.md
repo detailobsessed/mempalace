@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 <!-- version list -->
 
+## v0.1.3 (2026-04-13)
+
+### Bug Fixes
+
+- Return "general" room from process_file error paths
+  ([#50](https://github.com/detailobsessed/mempalace/pull/50),
+  [`327e0bf`](https://github.com/detailobsessed/mempalace/commit/327e0bf0ab02a7f1a8725cf4eb8f0a4be1fb1424))
+
+
 ## v0.1.2 (2026-04-13)
 
 ### Bug Fixes
