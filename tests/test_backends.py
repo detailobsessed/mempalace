@@ -198,24 +198,13 @@ def test_query_empty_preserves_embeddings_outer_shape_when_requested():
     assert not_requested.embeddings is None
 
 
-def test_base_collection_update_default_validates_list_lengths(tmp_path):
-    backend = ChromaBackend()
-    palace_path = tmp_path / "palace"
-    collection = backend.get_collection(
-        palace=PalaceRef(id=str(palace_path), local_path=str(palace_path)),
-        collection_name="mempalace_drawers",
-        create=True,
-    )
+def test_base_collection_update_default_validates_list_lengths():
+    from mempalace.backends.base import BaseCollection
+
+    collection = ChromaCollection(_FakeCollection())
 
     # Mismatched documents length → clear ValueError, not silent merge.
     with pytest.raises(ValueError, match="documents length"):
-        collection._collection.add(
-            documents=["a", "b"],
-            ids=["1", "2"],
-            metadatas=[{"k": 1}, {"k": 2}],
-        )
-        from mempalace.backends.base import BaseCollection
-
         BaseCollection.update(
             collection,
             ids=["1", "2"],
@@ -274,22 +263,11 @@ def test_chroma_cache_picks_up_db_created_after_first_open(tmp_path):
     assert backend._freshness[str(palace_path)] != (0, 0.0)
 
 
-def test_base_collection_update_default_rejects_mismatched_lengths(tmp_path):
+def test_base_collection_update_default_rejects_mismatched_lengths():
     """The ABC default update() raises ValueError rather than silently misaligning."""
     from mempalace.backends.base import BaseCollection
 
-    backend = ChromaBackend()
-    palace_path = tmp_path / "palace"
-    collection = backend.get_collection(
-        palace=PalaceRef(id=str(palace_path), local_path=str(palace_path)),
-        collection_name="mempalace_drawers",
-        create=True,
-    )
-    collection.add(
-        documents=["a", "b"],
-        ids=["1", "2"],
-        metadatas=[{"k": 1}, {"k": 2}],
-    )
+    collection = ChromaCollection(_FakeCollection())
 
     with pytest.raises(ValueError, match="documents length"):
         BaseCollection.update(collection, ids=["1", "2"], documents=["only-one"])
