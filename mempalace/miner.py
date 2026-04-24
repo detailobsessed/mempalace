@@ -52,6 +52,7 @@ READABLE_EXTENSIONS = {
 }
 
 SKIP_FILENAMES = {
+    "entities.json",
     "mempalace.yaml",
     "mempalace.yml",
     "mempal.yaml",
