@@ -220,6 +220,14 @@ def rebuild_index(palace_path=None):
     print(f"{'=' * 55}\n")
     print(f"  Palace: {palace_path}")
 
+    from .backends.chroma import quarantine_stale_hnsw
+
+    quarantined = quarantine_stale_hnsw(palace_path)
+    if quarantined:
+        print(
+            f"  Quarantined bloated/stale HNSW segments: {[os.path.basename(p) for p in quarantined]}"
+        )
+
     backend = ChromaBackend()
     try:
         col = backend.get_collection(palace_path, COLLECTION_NAME)

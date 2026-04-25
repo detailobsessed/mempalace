@@ -49,8 +49,12 @@ def _validate_where(where: Optional[dict]) -> None:
                 stack.extend(x for x in v if isinstance(x, dict))
 
 
-def quarantine_stale_hnsw(palace_path: str, stale_seconds: float = 3600.0) -> list[str]:
-    """Rename HNSW segment dirs whose files are stale vs. chroma.sqlite3.
+def quarantine_stale_hnsw(
+    palace_path: str,
+    stale_seconds: float = 3600.0,
+    max_link_lists_bytes: int = 5 * 1024**3,
+) -> list[str]:
+    """Rename HNSW segment dirs whose files are stale or bloated vs. chroma.sqlite3.
 
     When a ChromaDB 1.5.x PersistentClient opens a palace whose on-disk
     HNSW segment is significantly older than ``chroma.sqlite3``, the Rust
@@ -66,24 +70,34 @@ def quarantine_stale_hnsw(palace_path: str, stale_seconds: float = 3600.0) -> li
     crash rate dropped to 0% after the segment dir was renamed out of the
     way and ChromaDB rebuilt lazily.
 
-    Heuristic: if ``chroma.sqlite3`` is more than ``stale_seconds`` newer
-    than the segment's ``data_level0.bin``, the segment is considered
-    suspect and renamed to ``<uuid>.drift-<timestamp>``. ChromaDB reopens
-    cleanly without it and writes fresh index files on next use. The
-    original directory is renamed, not deleted, so recovery remains
-    possible if the heuristic misfires.
+    A second trigger is HNSW bloat: repeated upserts with the same IDs
+    accumulate duplicate neighbor entries in ``link_lists.bin``, which can
+    grow to terabytes (sparse on disk but still fatal when the Rust graph
+    walker traverses it). Any segment whose ``link_lists.bin`` apparent
+    size exceeds ``max_link_lists_bytes`` is quarantined regardless of age.
 
-    The default threshold (1h) is deliberately conservative — ChromaDB's
-    HNSW flush cadence means legitimate drift is normally on the order of
-    seconds to minutes. A segment that is more than an hour out of date is
-    almost certainly in a "crashed mid-write" state.
+    Heuristic: if ``chroma.sqlite3`` is more than ``stale_seconds`` newer
+    than the segment's ``data_level0.bin``, OR ``link_lists.bin`` exceeds
+    ``max_link_lists_bytes``, the segment is considered suspect and renamed
+    to ``<uuid>.drift-<timestamp>``. ChromaDB reopens cleanly without it
+    and writes fresh index files on next use. The original directory is
+    renamed, not deleted, so recovery remains possible if the heuristic
+    misfires.
+
+    The default staleness threshold (1h) is deliberately conservative —
+    ChromaDB's HNSW flush cadence means legitimate drift is normally on
+    the order of seconds to minutes. The default bloat threshold (5 GB
+    apparent size) catches runaway ``link_lists.bin`` growth well before
+    it causes segfaults.
 
     Args:
         palace_path: path to the palace directory containing ``chroma.sqlite3``
         stale_seconds: minimum mtime gap to treat a segment as stale
+        max_link_lists_bytes: apparent size threshold for ``link_lists.bin``
+            bloat detection (0 disables the size check)
 
     Returns:
-        List of paths that were quarantined (empty if nothing drifted).
+        List of paths that were quarantined (empty if nothing triggered).
     """
     db_path = os.path.join(palace_path, "chroma.sqlite3")
     if not os.path.isfile(db_path):
@@ -112,21 +126,36 @@ def quarantine_stale_hnsw(palace_path: str, stale_seconds: float = 3600.0) -> li
             hnsw_mtime = os.path.getmtime(hnsw_bin)
         except OSError:
             continue
-        if sqlite_mtime - hnsw_mtime < stale_seconds:
+        stale = sqlite_mtime - hnsw_mtime >= stale_seconds
+
+        bloated = False
+        if max_link_lists_bytes > 0:
+            lll_path = os.path.join(seg_dir, "link_lists.bin")
+            try:
+                bloated = os.path.getsize(lll_path) > max_link_lists_bytes
+            except OSError:
+                pass
+
+        if not stale and not bloated:
             continue
+        reason = (
+            "bloated link_lists.bin"
+            if bloated
+            else f"sqlite {sqlite_mtime - hnsw_mtime:.0f}s newer than HNSW"
+        )
         stamp = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
         target = f"{seg_dir}.drift-{stamp}"
         try:
             os.rename(seg_dir, target)
             moved.append(target)
             logger.warning(
-                "Quarantined stale HNSW segment %s (sqlite %.0fs newer than HNSW); renamed to %s",
+                "Quarantined HNSW segment %s (%s); renamed to %s",
                 seg_dir,
-                sqlite_mtime - hnsw_mtime,
+                reason,
                 target,
             )
         except OSError:
-            logger.exception("Failed to quarantine stale HNSW segment %s", seg_dir)
+            logger.exception("Failed to quarantine HNSW segment %s", seg_dir)
     return moved
 
 
@@ -465,6 +494,7 @@ class ChromaBackend(BaseBackend):
 
         if cached is None or inode_changed or mtime_changed or mtime_appeared:
             _fix_blob_seq_ids(palace_path)
+            quarantine_stale_hnsw(palace_path)
             cached = chromadb.PersistentClient(path=palace_path)
             self._clients[palace_path] = cached
             # Re-stat after the client constructor runs: chromadb creates
